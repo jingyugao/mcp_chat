@@ -1,6 +1,17 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { ListPromptsRequestSchema, ListPromptsResultSchema, ListToolsRequestSchema, ListToolsResultSchema } from '@modelcontextprotocol/sdk/types.js';
+import express from 'express';
+import cors from 'cors';
+
+const app = express();
+
+// 配置CORS
+app.use(cors({
+  origin: '*', // 允许所有来源访问，生产环境应该设置具体的域名
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 const transport = new StdioServerTransport();
 
@@ -19,6 +30,21 @@ const server = new Server(
     }
   }
 );
+
+// 设置Express路由
+app.get('/sse', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  
+  // 这里可以添加SSE事件处理逻辑
+});
+
+// 启动Express服务器
+const PORT = 9002;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
 
 console.log('Server created, registering handlers...');
 
