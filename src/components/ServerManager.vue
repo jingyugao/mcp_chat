@@ -45,7 +45,7 @@
           <span class="server-address">{{ server.url }}</span>
           <span class="server-status" :class="server.status">{{ server.status }}</span>
           <span class="server-tools" v-if="server.tools">
-            Tools ({{ server.tools.length }}): {{ server.tools.slice(0, 3).join(', ') }}
+            Tools ({{ server.tools.length }}): {{ server.tools.map(t => t.name).slice(0, 3).join(', ') }}
             <div class="tool-list" v-if="server.tools.length > 0">
               <div v-for="tool in server.tools" 
                    :key="tool.name" 
@@ -57,11 +57,11 @@
                 </div>
                 <div class="tool-details">
                   <p class="tool-description">{{ tool.description }}</p>
-                  <div class="tool-parameters" v-if="tool.parameters">
+                  <div class="tool-parameters" v-if="tool.inputSchema?.properties">
                     <h4>Parameters:</h4>
                     <ul>
-                      <li v-for="param in tool.parameters" :key="param.name">
-                        {{ param.name }}: {{ param.description }}
+                      <li v-for="(param, name) in tool.inputSchema.properties" :key="name">
+                        {{ name }}: {{ param.title }}
                       </li>
                     </ul>
                   </div>
@@ -70,21 +70,21 @@
             </div>
           </span>
           <span class="server-prompts" v-if="server.prompts">
-            Prompts ({{ server.prompts.length }}): {{ server.prompts.slice(0, 3).join(', ') }}
+            Prompts ({{ server.prompts.length }}): {{ server.prompts.map(p => p.name).slice(0, 3).join(', ') }}
             <div class="hover-content" v-if="server.prompts.length > 3">
-              {{ server.prompts.join(', ') }}
+              {{ server.prompts.map(p => p.name).join(', ') }}
             </div>
           </span>
           <span class="server-resources" v-if="server.resources">
-            Resources ({{ server.resources.length }}): {{ server.resources.slice(0, 3).join(', ') }}
+            Resources ({{ server.resources.length }}): {{ server.resources.map(r => r.name).slice(0, 3).join(', ') }}
             <div class="hover-content" v-if="server.resources.length > 3">
-              {{ server.resources.join(', ') }}
+              {{ server.resources.map(r => r.name).join(', ') }}
             </div>
           </span>
           <span class="server-resource-templates" v-if="server.resource_templates">
-            Resource Templates ({{ server.resource_templates.length }}): {{ server.resource_templates.slice(0, 3).join(', ') }}
+            Resource Templates ({{ server.resource_templates.length }}): {{ server.resource_templates.map(t => t.name).slice(0, 3).join(', ') }}
             <div class="hover-content" v-if="server.resource_templates.length > 3">
-              {{ server.resource_templates.join(', ') }}
+              {{ server.resource_templates.map(t => t.name).join(', ') }}
             </div>
           </span>
         </div>
@@ -92,14 +92,14 @@
           <button 
             @click.stop="toggleConnection(server)"
             :class="{ 'connected': server.status === 'connected' }"
-            :disabled="server.status === 'connecting'"
+            :disabled="server.status === 'connecting' || server.status === 'disconnecting'"
           >
             {{ getConnectionButtonText(server) }}
           </button>
           <button 
             @click.stop="removeServer(server)"
             class="btn-delete"
-            :disabled="server.status === 'connecting'"
+            :disabled="server.status === 'connecting' || server.status === 'disconnecting'"
           >
             Remove
           </button>
@@ -110,18 +110,30 @@
       <div v-if="selectedTool" class="tool-parameter-form">
         <h3>{{ selectedTool.name }} Parameters</h3>
         <form @submit.prevent="executeTool">
-          <div v-for="param in selectedTool.parameters" :key="param.name" class="param-group">
-            <label :for="param.name">{{ param.name }}</label>
+          <div v-for="(param, name) in selectedTool.inputSchema.properties" 
+               :key="name" 
+               class="param-group">
+            <label :for="name">{{ param.title || name }}</label>
             <input 
-              :id="param.name"
-              v-model="toolParams[param.name]"
+              :id="name"
+              v-model="toolParams[name]"
               :type="getInputType(param)"
               :placeholder="param.description"
-              :required="param.required"
+              :required="selectedTool.inputSchema.required?.includes(name)"
             >
           </div>
-          <button type="submit" class="btn-execute">Execute Tool</button>
+          <button type="submit" class="btn-execute" :disabled="isExecuting">
+            {{ isExecuting ? 'Executing...' : 'Execute Tool' }}
+          </button>
         </form>
+
+        <!-- Tool Execution Result -->
+        <div v-if="toolResult" class="tool-result">
+          <h4>Execution Result</h4>
+          <div class="result-content">
+            <pre>{{ typeof toolResult === 'object' ? JSON.stringify(toolResult, null, 2) : toolResult }}</pre>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -138,6 +150,8 @@ export default {
       selectedServer: null,
       selectedTool: null,
       toolParams: {},
+      toolResult: null,
+      isExecuting: false,
       newServer: {
         name: '',
         url: ''
@@ -237,16 +251,34 @@ export default {
     async toggleConnection(server) {
       try {
         // Set temporary connecting status
-        server.status = 'connecting'
+        const isDisconnecting = server.status === 'connected'
+        server.status = isDisconnecting ? 'disconnecting' : 'connecting'
 
-        if (server.status === 'connected') {
-          // TODO: Implement disconnect when backend adds support
-          server.status = 'disconnected'
+        if (isDisconnecting) {
+          const response = await fetch(`${API_BASE_URL}/disconnect_server?name=${server.name}`, {
+            method: 'POST'
+          })
+
+          if (!response.ok) {
+            throw new Error('Failed to disconnect from server')
+          }
+
+          const result = await response.json()
+          if (result.status === 'success') {
+            // Refresh the server list to get updated information
+            await this.fetchServers()
+            
+            // Find and select the updated server from the refreshed list
+            const updatedServer = this.servers.find(s => s.name === server.name)
+            if (updatedServer) {
+              this.selectServer(updatedServer)
+            }
+          } else {
+            throw new Error(result.message || 'Failed to disconnect from server')
+          }
         } else {
           const response = await fetch(`${API_BASE_URL}/connect_server?name=${server.name}`, {
-            method: 'POST',
-        
-       
+            method: 'POST'
           })
 
           if (!response.ok) {
@@ -255,11 +287,14 @@ export default {
 
           const result = await response.json()
           if (result.status === 'success') {
-            server.status = 'connected'
-            server.tools = result.tools
-            server.prompts = result.prompts
-            server.resources = result.resources
-            server.resource_templates = result.resource_templates
+            // Refresh the server list to get updated information
+            await this.fetchServers()
+            
+            // Find and select the updated server from the refreshed list
+            const updatedServer = this.servers.find(s => s.name === server.name)
+            if (updatedServer) {
+              this.selectServer(updatedServer)
+            }
           } else {
             throw new Error(result.message || 'Failed to connect to server')
           }
@@ -275,6 +310,8 @@ export default {
           return 'Disconnect'
         case 'connecting':
           return 'Connecting...'
+        case 'disconnecting':
+          return 'Disconnecting...'
         case 'error':
           return 'Retry Connection'
         default:
@@ -289,6 +326,7 @@ export default {
       // Determine input type based on parameter type
       switch (param.type) {
         case 'number':
+        case 'integer':
           return 'number';
         case 'boolean':
           return 'checkbox';
@@ -298,6 +336,9 @@ export default {
     },
     async executeTool() {
       try {
+        this.isExecuting = true;
+        this.toolResult = null;
+        
         const response = await fetch(`${API_BASE_URL}/execute_tool`, {
           method: 'POST',
           headers: {
@@ -315,9 +356,12 @@ export default {
         }
 
         const result = await response.json();
-        console.log('Tool execution result:', result);
+        this.toolResult = result;
       } catch (error) {
         console.error('Error executing tool:', error);
+        this.toolResult = { error: error.message };
+      } finally {
+        this.isExecuting = false;
       }
     }
   }
@@ -635,5 +679,41 @@ button:hover:not(:disabled) {
 
 .btn-execute:hover {
   background-color: #1976d2;
+}
+
+.tool-result {
+  margin-top: 20px;
+  padding: 15px;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+}
+
+.tool-result h4 {
+  margin: 0 0 10px 0;
+  color: #333;
+}
+
+.result-content {
+  max-height: 300px;
+  overflow-y: auto;
+  background: #fff;
+  padding: 10px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+}
+
+.result-content pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: monospace;
+  font-size: 14px;
+  color: #333;
+}
+
+button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 </style> 
