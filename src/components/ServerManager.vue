@@ -619,8 +619,7 @@ export default {
           },
           body: JSON.stringify({
             server: this.selectedServer.name,
-            resource: this.selectedResource.name,
-            parameters: this.resourceParams
+            resource: this.selectedResource.name
           })
         });
 
