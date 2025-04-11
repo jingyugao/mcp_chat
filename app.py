@@ -2,19 +2,14 @@ from calendar import c
 from pydoc import cli
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime
-import pytz
-import aiohttp
-import asyncio
-import json
-import signal
-import sys
+
 from typing import Optional, Dict, List
 from pydantic import BaseModel
 from contextlib import AsyncExitStack
-from mcp import  ClientSession,Tool,Resource,ResourceTemplate,Prompt
+from mcp import ClientSession
+from mcp.types import ResourceTemplate,Prompt,Resource, Tool
 from mcp.client.sse import sse_client
-
+import mcp as mcp
 
 app = FastAPI()
 
