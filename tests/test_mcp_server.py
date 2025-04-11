@@ -1,3 +1,4 @@
+import asyncio
 from re import T
 from typing import Any
 import httpx
@@ -26,7 +27,10 @@ async def get_last_tweets(user_name: str):
 
 @mcp.resource("resource://translate/supported_languages")
 async def get_supported_languages():
-    """Get the supported languages for translation."""
+    """Get the supported languages for translation.
+    
+    return: list of supported languages
+    """
     return ["en", "zh"]
 
 
@@ -56,5 +60,13 @@ async def translate_user_tweets(user_name: str,language: str):
 
 
 if __name__ == "__main__":
+    resources = asyncio.run(mcp.list_resource_templates())
+    for resource in resources:
+        print(resource.description,resource.name,resource.uriTemplate)
+
+    resources = asyncio.run(mcp.list_resources())
+    for resource in resources:
+        print(resource.description,resource.name,resource.uri)
+
     # Initialize and run the server
     mcp.run(transport="sse")

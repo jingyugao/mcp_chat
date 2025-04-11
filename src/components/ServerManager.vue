@@ -71,20 +71,69 @@
           </span>
           <span class="server-prompts" v-if="server.prompts">
             Prompts ({{ server.prompts.length }}): {{ server.prompts.map(p => p.name).slice(0, 3).join(', ') }}
-            <div class="hover-content" v-if="server.prompts.length > 3">
-              {{ server.prompts.map(p => p.name).join(', ') }}
+            <div class="prompt-list" v-if="server.prompts.length > 0">
+              <div v-for="prompt in server.prompts" 
+                   :key="prompt.name" 
+                   class="item-details"
+                   @click.stop="selectPrompt(server, prompt)"
+                   :class="{ 'selected': selectedPrompt?.name === prompt.name }">
+                <div class="item-header">
+                  <span class="item-name">{{ prompt.name }}</span>
+                </div>
+                <div class="item-content">
+                  <p class="item-description">{{ prompt.description }}</p>
+                  <div class="item-parameters" v-if="prompt.parameters">
+                    <h4>Parameters:</h4>
+                    <ul>
+                      <li v-for="param in prompt.parameters" :key="param.name">
+                        {{ param.name }}: {{ param.description }}
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
             </div>
           </span>
           <span class="server-resources" v-if="server.resources">
             Resources ({{ server.resources.length }}): {{ server.resources.map(r => r.name).slice(0, 3).join(', ') }}
-            <div class="hover-content" v-if="server.resources.length > 3">
-              {{ server.resources.map(r => r.name).join(', ') }}
+            <div class="resource-list" v-if="server.resources.length > 0">
+              <div v-for="resource in server.resources" 
+                   :key="resource.name" 
+                   class="item-details"
+                   @click.stop="selectResource(server, resource)"
+                   :class="{ 'selected': selectedResource?.name === resource.name }">
+                <div class="item-header">
+                  <span class="item-name">{{ resource.name }}</span>
+                </div>
+                <div class="item-content">
+                  <p class="item-description">{{ resource.description }}</p>
+                  <div class="item-type" v-if="resource.type">
+                    <h4>Type:</h4>
+                    <p>{{ resource.type }}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </span>
           <span class="server-resource-templates" v-if="server.resource_templates">
             Resource Templates ({{ server.resource_templates.length }}): {{ server.resource_templates.map(t => t.name).slice(0, 3).join(', ') }}
-            <div class="hover-content" v-if="server.resource_templates.length > 3">
-              {{ server.resource_templates.map(t => t.name).join(', ') }}
+            <div class="template-list" v-if="server.resource_templates.length > 0">
+              <div v-for="template in server.resource_templates" 
+                   :key="template.name" 
+                   class="item-details"
+                   @click.stop="selectResourceTemplate(server, template)"
+                   :class="{ 'selected': selectedResourceTemplate?.name === template.name }">
+                <div class="item-header">
+                  <span class="item-name">{{ template.name }}</span>
+                </div>
+                <div class="item-content">
+                  <p class="item-description">{{ template.description }}</p>
+                  <div class="item-schema" v-if="template.schema">
+                    <h4>Schema:</h4>
+                    <pre>{{ JSON.stringify(template.schema, null, 2) }}</pre>
+                  </div>
+                </div>
+              </div>
             </div>
           </span>
         </div>
@@ -135,6 +184,100 @@
           </div>
         </div>
       </div>
+
+      <!-- Prompt Parameter Form -->
+      <div v-if="selectedPrompt" class="tool-parameter-form">
+        <h3>{{ selectedPrompt.name }} Parameters</h3>
+        <form @submit.prevent="getPrompt">
+          <div v-for="arg in selectedPrompt.arguments" 
+               :key="arg.name" 
+               class="param-group">
+            <label :for="arg.name">{{ arg.name }}</label>
+            <input 
+              :id="arg.name"
+              v-model="promptParams[arg.name]"
+              type="text"
+              :placeholder="arg.description || `Enter ${arg.name}`"
+              :required="arg.required"
+            >
+          </div>
+          <button type="submit" class="btn-execute" :disabled="isExecuting">
+            {{ isExecuting ? 'Executing...' : 'Get Prompt' }}
+          </button>
+        </form>
+
+        <!-- Prompt Execution Result -->
+        <div v-if="promptResult" class="tool-result">
+          <h4>Execution Result</h4>
+          <div class="result-content">
+            <pre>{{ typeof promptResult === 'object' ? JSON.stringify(promptResult, null, 2) : promptResult }}</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resource Parameter Form -->
+      <div v-if="selectedResource" class="tool-parameter-form">
+        <h3>{{ selectedResource.name }} Parameters</h3>
+        <form @submit.prevent="fetchResource">
+          <div v-for="(param, name) in selectedResource.parameters" 
+               :key="name" 
+               class="param-group">
+            <label :for="name">{{ name }}</label>
+            <input 
+              :id="name"
+              v-model="resourceParams[name]"
+              type="text"
+              :placeholder="param.description"
+              :required="param.required"
+            >
+          </div>
+          <button type="submit" class="btn-execute" :disabled="isExecuting">
+            {{ isExecuting ? 'Fetching...' : 'Fetch Resource' }}
+          </button>
+        </form>
+
+        <!-- Resource Execution Result -->
+        <div v-if="resourceResult" class="tool-result">
+          <h4>Resource Content</h4>
+          <div class="result-content">
+            <pre>{{ typeof resourceResult === 'object' ? JSON.stringify(resourceResult, null, 2) : resourceResult }}</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resource Template Parameter Form -->
+      <div v-if="selectedResourceTemplate" class="tool-parameter-form">
+        <h3>{{ selectedResourceTemplate.name }} Parameters</h3>
+        <div class="template-url">
+          <h4>Template URL:</h4>
+          <pre>{{ selectedResourceTemplate.uriTemplate }}</pre>
+        </div>
+        <form @submit.prevent="fetchResourceFromTemplate">
+          <div v-for="param in urlParameters" 
+               :key="param.name" 
+               class="param-group">
+            <label :for="param.name">{{ param.name }}</label>
+            <input 
+              :id="param.name"
+              v-model="resourceTemplateParams[param.name]"
+              type="text"
+              :placeholder="param.description"
+              :required="param.required"
+            >
+          </div>
+          <button type="submit" class="btn-execute" :disabled="isExecuting">
+            {{ isExecuting ? 'Fetching...' : 'Fetch Resource' }}
+          </button>
+        </form>
+
+        <!-- Resource Template Execution Result -->
+        <div v-if="resourceTemplateResult" class="tool-result">
+          <h4>Execution Result</h4>
+          <div class="result-content">
+            <pre>{{ typeof resourceTemplateResult === 'object' ? JSON.stringify(resourceTemplateResult, null, 2) : resourceTemplateResult }}</pre>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -149,14 +292,24 @@ export default {
       servers: [],
       selectedServer: null,
       selectedTool: null,
+      selectedPrompt: null,
+      selectedResource: null,
+      selectedResourceTemplate: null,
       toolParams: {},
+      promptParams: {},
+      resourceParams: {},
+      resourceTemplateParams: {},
       toolResult: null,
+      promptResult: null,
+      resourceResult: null,
+      resourceTemplateResult: null,
       isExecuting: false,
       newServer: {
         name: '',
         url: ''
       },
-      urlError: ''
+      urlError: '',
+      urlParameters: []
     }
   },
   async created() {
@@ -320,7 +473,59 @@ export default {
     },
     selectTool(server, tool) {
       this.selectedTool = tool;
+      this.selectedPrompt = null;
+      this.selectedResource = null;
+      this.selectedResourceTemplate = null;
       this.toolParams = {};  // Reset parameters
+    },
+    selectPrompt(server, prompt) {
+      this.selectedPrompt = prompt;
+      this.selectedTool = null;
+      this.selectedResource = null;
+      this.selectedResourceTemplate = null;
+      // Initialize parameters based on prompt arguments
+      this.promptParams = {};
+      if (prompt.arguments) {
+        prompt.arguments.forEach(arg => {
+          this.promptParams[arg.name] = '';
+        });
+      }
+    },
+    selectResource(server, resource) {
+      this.selectedResource = resource;
+      this.selectedTool = null;
+      this.selectedPrompt = null;
+      this.selectedResourceTemplate = null;
+      this.resourceParams = {};  // Reset parameters
+    },
+    selectResourceTemplate(server, template) {
+      this.selectedResourceTemplate = template;
+      this.selectedTool = null;
+      this.selectedPrompt = null;
+      this.selectedResource = null;
+      this.resourceTemplateParams = {};  // Reset parameters
+      
+      // Parse URL parameters from template URL
+      if (template.uriTemplate) {
+        // Find all parameters wrapped in {}
+        const regex = /\{([^}]+)\}/g;
+        let match;
+        const params = [];
+        
+        while ((match = regex.exec(template.uriTemplate)) !== null) {
+          const paramName = match[1];
+          params.push({
+            name: paramName,
+            key: paramName,
+            description: `Enter value for ${paramName}`,
+            required: true
+          });
+        }
+        
+        this.urlParameters = params;
+      } else {
+        this.urlParameters = [];
+      }
     },
     getInputType(param) {
       // Determine input type based on parameter type
@@ -360,6 +565,117 @@ export default {
       } catch (error) {
         console.error('Error executing tool:', error);
         this.toolResult = { error: error.message };
+      } finally {
+        this.isExecuting = false;
+      }
+    },
+    async getPrompt() {
+      try {
+        if (!this.selectedServer || !this.selectedPrompt) {
+          throw new Error('Please select a server and prompt first');
+        }
+
+        this.isExecuting = true;
+        this.promptResult = null;
+        
+        const response = await fetch(`${API_BASE_URL}/get_prompt`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            server: this.selectedServer.name,
+            prompt: this.selectedPrompt.name,
+            parameters: this.promptParams
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to get prompt');
+        }
+
+        const result = await response.json();
+        this.promptResult = result;
+      } catch (error) {
+        console.error('Error getting prompt:', error);
+        this.promptResult = { error: error.message };
+      } finally {
+        this.isExecuting = false;
+      }
+    },
+    async fetchResource() {
+      try {
+        if (!this.selectedServer || !this.selectedResource) {
+          throw new Error('Please select a server and resource first');
+        }
+
+        this.isExecuting = true;
+        this.resourceResult = null;
+        
+        const response = await fetch(`${API_BASE_URL}/fetch_resource`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            server: this.selectedServer.name,
+            resource: this.selectedResource.name,
+            parameters: this.resourceParams
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch resource');
+        }
+
+        const result = await response.json();
+        this.resourceResult = result;
+      } catch (error) {
+        console.error('Error fetching resource:', error);
+        this.resourceResult = { error: error.message };
+      } finally {
+        this.isExecuting = false;
+      }
+    },
+    async fetchResourceFromTemplate() {
+      try {
+        if (!this.selectedServer || !this.selectedResourceTemplate) {
+          throw new Error('Please select a server and resource template first');
+        }
+
+        this.isExecuting = true;
+        this.resourceTemplateResult = null;
+        
+        // Generate the final URL by replacing parameters
+        let finalUrl = this.selectedResourceTemplate.uriTemplate;
+        for (const param of this.urlParameters) {
+          const value = this.resourceTemplateParams[param.name];
+          if (!value && param.required) {
+            throw new Error(`Missing required parameter: ${param.name}`);
+          }
+          finalUrl = finalUrl.replace(`{${param.name}}`, encodeURIComponent(value));
+        }
+        
+        const response = await fetch(`${API_BASE_URL}/fetch_resource`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            server: this.selectedServer.name,
+            resource: finalUrl,
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch resource from template');
+        }
+
+        const result = await response.json();
+        this.resourceTemplateResult = result;
+      } catch (error) {
+        console.error('Error fetching resource from template:', error);
+        this.resourceTemplateResult = { error: error.message };
       } finally {
         this.isExecuting = false;
       }
@@ -531,6 +847,14 @@ button:hover:not(:disabled) {
   margin-top: 4px;
   display: block;
   position: relative;
+  cursor: pointer;
+}
+
+.server-tools:hover,
+.server-prompts:hover,
+.server-resources:hover,
+.server-resource-templates:hover {
+  color: #2196f3;
 }
 
 .hover-content {
@@ -566,7 +890,10 @@ button:hover:not(:disabled) {
   border-left: 4px solid #f44336;
 }
 
-.tool-list {
+.tool-list,
+.prompt-list,
+.resource-list,
+.template-list {
   position: absolute;
   left: 0;
   top: 100%;
@@ -580,64 +907,92 @@ button:hover:not(:disabled) {
   display: none;
 }
 
-.server-tools:hover .tool-list {
+.server-tools:hover .tool-list,
+.server-prompts:hover .prompt-list,
+.server-resources:hover .resource-list,
+.server-resource-templates:hover .template-list {
   display: block;
 }
 
-.tool-item {
+.tool-item,
+.item-details {
   padding: 12px;
   border-bottom: 1px solid #eee;
-  cursor: pointer;
 }
 
-.tool-item:last-child {
+.tool-item:last-child,
+.item-details:last-child {
   border-bottom: none;
 }
 
-.tool-item:hover {
+.tool-item:hover,
+.item-details:hover {
   background-color: #f5f5f5;
 }
 
-.tool-item.selected {
-  background-color: #e3f2fd;
-}
-
-.tool-header {
+.tool-header,
+.item-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
 }
 
-.tool-name {
+.tool-name,
+.item-name {
   font-weight: bold;
   color: #2196f3;
 }
 
-.tool-description {
+.tool-description,
+.item-description {
   font-size: 14px;
   color: #666;
   margin-bottom: 8px;
+  white-space: pre-line;
+  word-wrap: break-word;
 }
 
-.tool-parameters {
+.tool-parameters,
+.item-parameters,
+.item-type,
+.item-schema {
   font-size: 12px;
+  margin-top: 8px;
 }
 
-.tool-parameters h4 {
+.tool-parameters h4,
+.item-parameters h4,
+.item-type h4,
+.item-schema h4 {
   margin: 8px 0;
   color: #333;
 }
 
-.tool-parameters ul {
+.tool-parameters ul,
+.item-parameters ul {
   list-style: none;
   padding: 0;
   margin: 0;
 }
 
-.tool-parameters li {
+.tool-parameters li,
+.item-parameters li {
   margin: 4px 0;
   color: #666;
+}
+
+.item-content {
+  font-size: 14px;
+}
+
+.item-content pre {
+  background: #f8f9fa;
+  padding: 8px;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 12px;
+  margin: 8px 0;
 }
 
 .tool-parameter-form {
@@ -645,6 +1000,30 @@ button:hover:not(:disabled) {
   padding: 20px;
   background-color: #f5f5f5;
   border-radius: 8px;
+}
+
+.template-url {
+  margin-bottom: 20px;
+  padding: 10px;
+  background-color: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.template-url h4 {
+  margin: 0 0 10px 0;
+  color: #333;
+}
+
+.template-url pre {
+  margin: 0;
+  padding: 8px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-family: monospace;
+  font-size: 14px;
+  color: #333;
 }
 
 .param-group {

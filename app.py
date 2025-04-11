@@ -1,7 +1,10 @@
 from calendar import c
 from pydoc import cli
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+import logging
+import traceback
 
 from typing import Optional, Dict, List
 from pydantic import BaseModel
@@ -11,7 +14,27 @@ from mcp.types import ResourceTemplate, Prompt, Resource, Tool
 from mcp.client.sse import sse_client
 import mcp as mcp
 
+# Configure logging
+logging.basicConfig(
+    level=logging.ERROR,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 app = FastAPI()
+
+# Error handling middleware
+@app.middleware("http")
+async def error_handling_middleware(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as e:
+        # Log the full error with traceback
+        logger.error(f"Error occurred: {str(e)}\n{traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error occurred"}
+        )
 
 # Configure CORS
 app.add_middleware(
@@ -95,6 +118,14 @@ mcp_clients: Dict[str, MCPClient] = {
 }
 
 
+def get_connected_client(name: str) -> MCPClient:
+    if name not in mcp_clients:
+        raise HTTPException(status_code=404, detail="Server not found")
+    if mcp_clients[name].status != "connected":
+        raise HTTPException(status_code=400, detail="Server not connected")
+    return mcp_clients[name]
+
+
 @app.get("/api/servers")
 async def list_servers() -> List[ServerInfo]:
     """List all registered servers and their status"""
@@ -125,8 +156,7 @@ async def add_server(server_info: ServerInfo):
 async def connect_server(name: str):
     """Connect to a registered server"""
     if name not in mcp_clients:
-        raise HTTPException(status_code=404, detail=f"Server {name} not found")
-
+        raise HTTPException(status_code=404, detail="Server not found")
     client = mcp_clients[name]
     if client.status == "connected":
         await client.cleanup()
@@ -143,10 +173,7 @@ async def connect_server(name: str):
 @app.post("/api/disconnect_server")
 async def disconnect_server(name: str):
     """Disconnect a server from the registry"""
-    if name not in mcp_clients:
-        raise HTTPException(status_code=404, detail="Server not found")
-
-    client = mcp_clients[name]
+    client = get_connected_client(name)
     await client.cleanup()
     return {"status": "success", "message": "Server disconnected successfully"}
 
@@ -168,18 +195,49 @@ class ToolExecuteRequest(BaseModel):
 @app.post("/api/execute_tool")
 async def execute_tool(request: ToolExecuteRequest):
     """Execute a tool on a server"""
-    if request.server not in mcp_clients:
-        raise HTTPException(status_code=404, detail="Server not found")
-
-    client = mcp_clients[request.server]
-    if client.status != "connected":
-        raise HTTPException(status_code=400, detail="Server not connected")
+    client = get_connected_client(request.server)
 
     try:
         result = await client.session.call_tool(request.tool, request.parameters)
         return {"status": "success", "result": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class GetPromptRequest(BaseModel):
+    server: str
+    prompt: str
+    parameters: dict
+
+
+@app.post("/api/get_prompt")
+async def get_prompt(request: GetPromptRequest):
+    """Get a prompt from a server"""
+    client = get_connected_client(request.server)
+
+    try:
+        result = await client.session.get_prompt(request.prompt, request.parameters)
+        return {"status": "success", "result": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class ResourceFetchRequest(BaseModel):
+    server: str
+    resource: str
+
+@app.post("/api/fetch_resource")
+async def fetch_resource(request: ResourceFetchRequest):
+    """Fetch a resource from a server"""
+    client = get_connected_client(request.server)
+
+    try:
+        result = await client.session.read_resource(request.resource)
+        return {"status": "success", "result": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 
 
 if __name__ == "__main__":
