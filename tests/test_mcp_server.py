@@ -68,5 +68,6 @@ if __name__ == "__main__":
     for resource in resources:
         print(resource.description,resource.name,resource.uri)
 
+
     # Initialize and run the server
     mcp.run(transport="sse")

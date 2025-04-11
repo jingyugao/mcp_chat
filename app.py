@@ -1,4 +1,6 @@
+import asyncio
 from calendar import c
+import os
 from pydoc import cli
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,20 +10,24 @@ import traceback
 
 from typing import Optional, Dict, List
 from pydantic import BaseModel
-from contextlib import AsyncExitStack
+
 from mcp import ClientSession
 from mcp.types import ResourceTemplate, Prompt, Resource, Tool
 from mcp.client.sse import sse_client
 import mcp as mcp
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # Configure logging
 logging.basicConfig(
-    level=logging.ERROR,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.ERROR, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+
 
 # Error handling middleware
 @app.middleware("http")
@@ -32,9 +38,9 @@ async def error_handling_middleware(request: Request, call_next):
         # Log the full error with traceback
         logger.error(f"Error occurred: {str(e)}\n{traceback.format_exc()}")
         return JSONResponse(
-            status_code=500,
-            content={"detail": "Internal server error occurred"}
+            status_code=500, content={"detail": "Internal server error occurred"}
         )
+
 
 # Configure CORS
 app.add_middleware(
@@ -66,11 +72,11 @@ class MCPClient:
         self.status = "disconnected"
         self.ServerInfo = ServerInfo(url=url, name=name)
 
-    async def connect_to_sse_server(self, server_url: str):
+    async def connect_to_sse_server(self):
         """Connect to an MCP server running with SSE transport"""
         try:
             # Store the context managers so they stay alive
-            self._streams_context = sse_client(url=server_url)
+            self._streams_context = sse_client(url=self.ServerInfo.url)
             streams = await self._streams_context.__aenter__()
 
             self._session_context = ClientSession(*streams)
@@ -160,7 +166,7 @@ async def connect_server(name: str):
     client = mcp_clients[name]
     if client.status == "connected":
         await client.cleanup()
-    success = await client.connect_to_sse_server(client.ServerInfo.url)
+    success = await client.connect_to_sse_server()
     if success:
         return {
             "status": "success",
@@ -226,6 +232,7 @@ class ResourceFetchRequest(BaseModel):
     server: str
     resource: str
 
+
 @app.post("/api/fetch_resource")
 async def fetch_resource(request: ResourceFetchRequest):
     """Fetch a resource from a server"""
@@ -238,9 +245,86 @@ async def fetch_resource(request: ResourceFetchRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/subscribe_resource")
+async def subscribe_resource(request: ResourceFetchRequest):
+    """Fetch a resource from a server"""
+    client = get_connected_client(request.server)
+
+    try:
+        result = await client.session.subscribe_resource(request.resource)
+        return {"status": "success", "result": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/process_query")
+async def process_query(query: str) -> str:
+    """Process a query using Claude and available tools"""
+    client = get_connected_client("default")
+    messages = [{"role": "user", "content": query}]
+
+    response = await client.session.list_tools()
+    available_tools = [
+        {
+            "name": tool.name,
+            "description": tool.description,
+            "input_schema": tool.inputSchema,
+        }
+        for tool in response.tools
+    ]
+    return ""
+
+
+from openai import OpenAI
+
+
+client = OpenAI(
+    api_key=os.getenv("DEEPSEEK_API_KEY"),
+    base_url="https://api.deepseek.com",
+)
+
+
+def get_tools():
+    tools = []
+    for client in mcp_clients.values():
+        for tool in client.ServerInfo.tools:
+            tools.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": tool.inputSchema,
+                    },
+                },
+            )
+    return tools
+
+
+def send_messages(messages):
+    print("all_tools", get_tools())
+    response = client.chat.completions.create(
+        model="deepseek-chat", messages=messages, tools=get_tools()
+    )
+    return response.choices[0].message
+
+
+async def devToolCall():
+    client = mcp_clients["default"]
+    await client.connect_to_sse_server()
+    messages = [{"role": "user", "content": "Translate Hello to Chinese."}]
+    message = send_messages(messages)
+    print("tool_calls", message.tool_calls)
+    tool = message.tool_calls[0]
+    messages.append(message)
+
+    messages.append({"role": "tool", "tool_call_id": tool.id, "content": "宁好"})
+    message = send_messages(messages)
+    print(f"Model>\t {message.content}")
 
 
 if __name__ == "__main__":
+
     import uvicorn
 
     # Configure uvicorn server with proper cleanup
@@ -253,6 +337,9 @@ if __name__ == "__main__":
         timeout_keep_alive=30,
         timeout_graceful_shutdown=10,
     )
+
     server = uvicorn.Server(config)
+
+    asyncio.run(devToolCall())
 
     server.run()
