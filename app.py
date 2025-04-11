@@ -27,10 +27,10 @@ class ServerInfo(BaseModel):
     name: str
     url: str
     status: str = None
-    tools: Optional[List[Tool]] = None
-    prompts: Optional[List[Prompt]] = None
-    resources: Optional[List[Resource]] = None
-    resource_templates: Optional[List[ResourceTemplate]] = None
+    tools: Optional[List[Tool]] = []
+    prompts: Optional[List[Prompt]] = []
+    resources: Optional[List[Resource]] = []
+    resource_templates: Optional[List[ResourceTemplate]] = []
 
 
 class MCPClient:
