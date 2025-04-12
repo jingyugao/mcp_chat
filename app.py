@@ -1,5 +1,6 @@
 import asyncio
 from calendar import c
+from contextlib import asynccontextmanager
 import os
 from pydoc import cli
 from fastapi import FastAPI, HTTPException, Request
@@ -15,6 +16,7 @@ from mcp import ClientSession
 from mcp.types import ResourceTemplate, Prompt, Resource, Tool
 from mcp.client.sse import sse_client
 import mcp as mcp
+from openai import OpenAI
 
 from dotenv import load_dotenv
 
@@ -27,6 +29,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+
+
+llm = OpenAI(
+    api_key=os.getenv("DEEPSEEK_API_KEY"),
+    base_url="https://api.deepseek.com",
+)
 
 
 # Error handling middleware
@@ -68,7 +76,6 @@ class MCPClient:
         self.session: Optional[ClientSession] = None
         self._streams_context = None
         self._session_context = None
-        self.tools = []
         self.status = "disconnected"
         self.ServerInfo = ServerInfo(url=url, name=name)
 
@@ -98,7 +105,6 @@ class MCPClient:
 
             self.status = "connected"
 
-            print(f"Connected to server with tools: {self.tools}")
             return True
         except Exception as e:
             print(f"Failed to connect to server: {str(e)}")
@@ -108,15 +114,22 @@ class MCPClient:
 
     async def cleanup(self):
         """Properly clean up the session and streams"""
-
-        self.status = "disconnected"
-        self.session = None
-        self._session_context = None
-        self._streams_context = None
-        self.ServerInfo.tools = []
-        self.ServerInfo.prompts = []
-        self.ServerInfo.resources = []
-        self.ServerInfo.resource_templates = []
+        try:
+            if self._session_context:
+                await self._session_context.__aexit__(None, None, None)
+            if self._streams_context:
+                await self._streams_context.__aexit__(None, None, None)
+        except Exception as e:
+            logger.error(f"Error during cleanup: {str(e)}")
+        finally:
+            self.status = "disconnected"
+            self.session = None
+            self._session_context = None
+            self._streams_context = None
+            self.ServerInfo.tools = []
+            self.ServerInfo.prompts = []
+            self.ServerInfo.resources = []
+            self.ServerInfo.resource_templates = []
 
 
 mcp_clients: Dict[str, MCPClient] = {
@@ -179,7 +192,7 @@ async def connect_server(name: str):
 @app.post("/api/disconnect_server")
 async def disconnect_server(name: str):
     """Disconnect a server from the registry"""
-    client = get_connected_client(name)
+    client = mcp_clients[name]
     await client.cleanup()
     return {"status": "success", "message": "Server disconnected successfully"}
 
@@ -257,70 +270,38 @@ async def subscribe_resource(request: ResourceFetchRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/process_query")
-async def process_query(query: str) -> str:
-    """Process a query using Claude and available tools"""
-    client = get_connected_client("default")
-    messages = [{"role": "user", "content": query}]
-
-    response = await client.session.list_tools()
-    available_tools = [
-        {
-            "name": tool.name,
-            "description": tool.description,
-            "input_schema": tool.inputSchema,
-        }
-        for tool in response.tools
-    ]
-    return ""
-
-
-from openai import OpenAI
-
-
-client = OpenAI(
-    api_key=os.getenv("DEEPSEEK_API_KEY"),
-    base_url="https://api.deepseek.com",
-)
-
-
 def get_tools():
     tools = []
     for client in mcp_clients.values():
         for tool in client.ServerInfo.tools:
-            tools.append(
-                {
-                    "type": "function",
-                    "function": {
-                        "name": tool.name,
-                        "description": tool.description,
-                        "parameters": tool.inputSchema,
-                    },
-                },
-            )
+            tools.append(get_tool_metadata(tool))
     return tools
 
 
-def send_messages(messages):
-    print("all_tools", get_tools())
-    response = client.chat.completions.create(
+def get_tool_metadata(tool: Tool):
+    return {
+        "type": "function",
+        "function": {
+            "name": tool.name,
+            "description": tool.description,
+            "parameters": tool.inputSchema,
+        },
+    }
+
+
+@app.post("/api/dev/list_tool_of_chat")
+async def list_tool_of_chat(request: Dict[str, str]):
+    """List tools of chat"""
+    messages = [{"role": "user", "content": request["content"]}]
+    response = llm.chat.completions.create(
         model="deepseek-chat", messages=messages, tools=get_tools()
     )
-    return response.choices[0].message
-
-
-async def devToolCall():
-    client = mcp_clients["default"]
-    await client.connect_to_sse_server()
-    messages = [{"role": "user", "content": "Translate Hello to Chinese."}]
-    message = send_messages(messages)
-    print("tool_calls", message.tool_calls)
-    tool = message.tool_calls[0]
-    messages.append(message)
-
-    messages.append({"role": "tool", "tool_call_id": tool.id, "content": "宁好"})
-    message = send_messages(messages)
-    print(f"Model>\t {message.content}")
+    message = response.choices[0].message
+    print(message)
+    return {
+        "status": "success",
+        "result": message.tool_calls,
+    }
 
 
 if __name__ == "__main__":
@@ -339,7 +320,4 @@ if __name__ == "__main__":
     )
 
     server = uvicorn.Server(config)
-
-    asyncio.run(devToolCall())
-
     server.run()

@@ -28,23 +28,23 @@ async def get_last_tweets(user_name: str):
 @mcp.resource("resource://translate/supported_languages")
 async def get_supported_languages():
     """Get the supported languages for translation.
-    
+
     return: list of supported languages
     """
     return ["en", "zh"]
 
 
 @mcp.tool()
-async def translate(language: str, text: str):
-    """Translate text to a given language.
+async def GetWeather(city: str):
+    """Get the weather for a given city.
     Args:
-            language: The language to translate to
-            text: The text to translate
+            city: The city to get the weather for
     """
-    return f"translated {text} to {language}"
+    return f"The weather in {city} is sunny"
+
 
 @mcp.prompt()
-async def translate_user_tweets(user_name: str,language: str):
+async def translate_user_tweets(user_name: str, language: str):
     """Translate a user's tweets to a given language.
     Args:
             user_name: The name of the user to translate the tweets of
@@ -62,12 +62,11 @@ async def translate_user_tweets(user_name: str,language: str):
 if __name__ == "__main__":
     resources = asyncio.run(mcp.list_resource_templates())
     for resource in resources:
-        print(resource.description,resource.name,resource.uriTemplate)
+        print(resource.description, resource.name, resource.uriTemplate)
 
     resources = asyncio.run(mcp.list_resources())
     for resource in resources:
-        print(resource.description,resource.name,resource.uri)
-
+        print(resource.description, resource.name, resource.uri)
 
     # Initialize and run the server
     mcp.run(transport="sse")

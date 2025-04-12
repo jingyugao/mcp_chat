@@ -1,280 +1,262 @@
 <template>
   <div class="server-manager">
-    <div class="server-form">
-      <h3>Add New Server</h3>
-      <form @submit.prevent="addServer">
-        <div class="form-group">
-          <input 
-            v-model="newServer.name" 
-            type="text" 
-            placeholder="Server Name"
-            required
-          >
+    <div class="main-container">
+      <div class="left-tabs">
+        <div class="tab-item" :class="{ active: activeTab === 'server' }" @click="activeTab = 'server'">
+          Server Manage
         </div>
-        <div class="form-group">
-          <input 
-            v-model="newServer.url" 
-            type="text" 
-            placeholder="Server URL (e.g. http://localhost:9002/sse)"
-            required
-            @input="validateUrl"
-          >
-          <span class="error-message" v-if="urlError">
-            {{ urlError }}
-          </span>
-        </div>
-        <button type="submit" class="btn-add" :disabled="!!urlError">Add Server</button>
-      </form>
-    </div>
-
-    <div class="server-list">
-      <h3>Servers</h3>
-      <div 
-        v-for="server in servers" 
-        :key="server.name" 
-        class="server-item"
-        :class="{ 
-          'selected': selectedServer?.name === server.name,
-          'connected': server.status === 'connected',
-          'error': server.status === 'error'
-        }"
-        @click="selectServer(server)"
-      >
-        <div class="server-info">
-          <span class="server-name">{{ server.name }}</span>
-          <span class="server-address">{{ server.url }}</span>
-          <span class="server-status" :class="server.status">{{ server.status }}</span>
-          <span class="server-tools" v-if="server.tools">
-            Tools ({{ server.tools.length }}): {{ server.tools.map(t => t.name).slice(0, 3).join(', ') }}
-            <div class="tool-list" v-if="server.tools.length > 0">
-              <div v-for="tool in server.tools" 
-                   :key="tool.name" 
-                   class="tool-item"
-                   @click.stop="selectTool(server, tool)"
-                   :class="{ 'selected': selectedTool?.name === tool.name }">
-                <div class="tool-header">
-                  <span class="tool-name">{{ tool.name }}</span>
-                </div>
-                <div class="tool-details">
-                  <p class="tool-description">{{ tool.description }}</p>
-                  <div class="tool-parameters" v-if="tool.inputSchema?.properties">
-                    <h4>Parameters:</h4>
-                    <ul>
-                      <li v-for="(param, name) in tool.inputSchema.properties" :key="name">
-                        {{ name }}: {{ param.title }}
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </span>
-          <span class="server-prompts" v-if="server.prompts">
-            Prompts ({{ server.prompts.length }}): {{ server.prompts.map(p => p.name).slice(0, 3).join(', ') }}
-            <div class="prompt-list" v-if="server.prompts.length > 0">
-              <div v-for="prompt in server.prompts" 
-                   :key="prompt.name" 
-                   class="item-details"
-                   @click.stop="selectPrompt(server, prompt)"
-                   :class="{ 'selected': selectedPrompt?.name === prompt.name }">
-                <div class="item-header">
-                  <span class="item-name">{{ prompt.name }}</span>
-                </div>
-                <div class="item-content">
-                  <p class="item-description">{{ prompt.description }}</p>
-                  <div class="item-parameters" v-if="prompt.parameters">
-                    <h4>Parameters:</h4>
-                    <ul>
-                      <li v-for="param in prompt.parameters" :key="param.name">
-                        {{ param.name }}: {{ param.description }}
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </span>
-          <span class="server-resources" v-if="server.resources">
-            Resources ({{ server.resources.length }}): {{ server.resources.map(r => r.name).slice(0, 3).join(', ') }}
-            <div class="resource-list" v-if="server.resources.length > 0">
-              <div v-for="resource in server.resources" 
-                   :key="resource.name" 
-                   class="item-details"
-                   @click.stop="selectResource(server, resource)"
-                   :class="{ 'selected': selectedResource?.name === resource.name }">
-                <div class="item-header">
-                  <span class="item-name">{{ resource.name }}</span>
-                </div>
-                <div class="item-content">
-                  <p class="item-description">{{ resource.description }}</p>
-                  <div class="item-type" v-if="resource.type">
-                    <h4>Type:</h4>
-                    <p>{{ resource.type }}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </span>
-          <span class="server-resource-templates" v-if="server.resource_templates">
-            Resource Templates ({{ server.resource_templates.length }}): {{ server.resource_templates.map(t => t.name).slice(0, 3).join(', ') }}
-            <div class="template-list" v-if="server.resource_templates.length > 0">
-              <div v-for="template in server.resource_templates" 
-                   :key="template.name" 
-                   class="item-details"
-                   @click.stop="selectResourceTemplate(server, template)"
-                   :class="{ 'selected': selectedResourceTemplate?.name === template.name }">
-                <div class="item-header">
-                  <span class="item-name">{{ template.name }}</span>
-                </div>
-                <div class="item-content">
-                  <p class="item-description">{{ template.description }}</p>
-                  <div class="item-schema" v-if="template.schema">
-                    <h4>Schema:</h4>
-                    <pre>{{ JSON.stringify(template.schema, null, 2) }}</pre>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </span>
-        </div>
-        <div class="server-actions">
-          <button 
-            @click.stop="toggleConnection(server)"
-            :class="{ 'connected': server.status === 'connected' }"
-            :disabled="server.status === 'connecting' || server.status === 'disconnecting'"
-          >
-            {{ getConnectionButtonText(server) }}
-          </button>
-          <button 
-            @click.stop="removeServer(server)"
-            class="btn-delete"
-            :disabled="server.status === 'connecting' || server.status === 'disconnecting'"
-          >
-            Remove
-          </button>
+        <div class="tab-item" :class="{ active: activeTab === 'chat' }" @click="activeTab = 'chat'">
+          Chat
         </div>
       </div>
 
-      <!-- Tool Parameter Form -->
-      <div v-if="selectedTool" class="tool-parameter-form">
-        <h3>{{ selectedTool.name }} Parameters</h3>
-        <form @submit.prevent="executeTool">
-          <div v-for="(param, name) in selectedTool.inputSchema.properties" 
-               :key="name" 
-               class="param-group">
-            <label :for="name">{{ param.title || name }}</label>
-            <input 
-              :id="name"
-              v-model="toolParams[name]"
-              :type="getInputType(param)"
-              :placeholder="param.description"
-              :required="selectedTool.inputSchema.required?.includes(name)"
-            >
+      <div class="content-area">
+        <!-- Server Manage Content -->
+        <div v-if="activeTab === 'server'" class="tab-content">
+          <div class="server-form">
+            <h3>Add New Server</h3>
+            <form @submit.prevent="addServer">
+              <div class="form-group">
+                <input v-model="newServer.name" type="text" placeholder="Server Name" required>
+              </div>
+              <div class="form-group">
+                <input v-model="newServer.url" type="text" placeholder="Server URL (e.g. http://localhost:9002/sse)" required @input="validateUrl">
+                <span class="error-message" v-if="urlError">
+                  {{ urlError }}
+                </span>
+              </div>
+              <button type="submit" class="btn-add" :disabled="!!urlError">Add Server</button>
+            </form>
           </div>
-          <button type="submit" class="btn-execute" :disabled="isExecuting">
-            {{ isExecuting ? 'Executing...' : 'Execute Tool' }}
-          </button>
-        </form>
 
-        <!-- Tool Execution Result -->
-        <div v-if="toolResult" class="tool-result">
-          <h4>Execution Result</h4>
-          <div class="result-content">
-            <pre>{{ typeof toolResult === 'object' ? JSON.stringify(toolResult, null, 2) : toolResult }}</pre>
+          <div class="server-list">
+            <div class="server-list-header">
+              <h3>Servers</h3>
+              <button @click="fetchServers" class="btn-refresh" :disabled="isExecuting" title="Refresh servers">
+                <span class="refresh-icon">↻</span>
+              </button>
+            </div>
+            <div v-for="server in servers" :key="server.name" class="server-item" :class="{
+              'selected': selectedServer?.name === server.name,
+              'connected': server.status === 'connected',
+              'error': server.status === 'error'
+            }" @click="selectServer(server)">
+              <div class="server-info">
+                <span class="server-name">{{ server.name }}</span>
+                <span class="server-address">{{ server.url }}</span>
+                <span class="server-status" :class="server.status">{{ server.status }}</span>
+                <span class="server-tools" v-if="server.tools">
+                  Tools ({{ server.tools.length }}): {{server.tools.map(t => t.name).slice(0, 3).join(', ')}}
+                  <div class="tool-list" v-if="server.tools.length > 0">
+                    <div v-for="tool in server.tools" :key="tool.name" class="tool-item" @click.stop="selectTool(server, tool)" :class="{ 'selected': selectedTool?.name === tool.name }">
+                      <div class="tool-header">
+                        <span class="tool-name">{{ tool.name }}</span>
+                      </div>
+                      <div class="tool-details">
+                        <p class="tool-description">{{ tool.description }}</p>
+                        <div class="tool-parameters" v-if="tool.inputSchema?.properties">
+                          <h4>Parameters:</h4>
+                          <ul>
+                            <li v-for="(param, name) in tool.inputSchema.properties" :key="name">
+                              {{ name }}: {{ param.title }}
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </span>
+                <span class="server-prompts" v-if="server.prompts">
+                  Prompts ({{ server.prompts.length }}): {{server.prompts.map(p => p.name).slice(0, 3).join(', ')}}
+                  <div class="prompt-list" v-if="server.prompts.length > 0">
+                    <div v-for="prompt in server.prompts" :key="prompt.name" class="item-details" @click.stop="selectPrompt(server, prompt)" :class="{ 'selected': selectedPrompt?.name === prompt.name }">
+                      <div class="item-header">
+                        <span class="item-name">{{ prompt.name }}</span>
+                      </div>
+                      <div class="item-content">
+                        <p class="item-description">{{ prompt.description }}</p>
+                        <div class="item-parameters" v-if="prompt.parameters">
+                          <h4>Parameters:</h4>
+                          <ul>
+                            <li v-for="param in prompt.parameters" :key="param.name">
+                              {{ param.name }}: {{ param.description }}
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </span>
+                <span class="server-resources" v-if="server.resources">
+                  Resources ({{ server.resources.length }}): {{server.resources.map(r => r.name).slice(0, 3).join(', ')}}
+                  <div class="resource-list" v-if="server.resources.length > 0">
+                    <div v-for="resource in server.resources" :key="resource.name" class="item-details" @click.stop="selectResource(server, resource)" :class="{ 'selected': selectedResource?.name === resource.name }">
+                      <div class="item-header">
+                        <span class="item-name">{{ resource.name }}</span>
+                      </div>
+                      <div class="item-content">
+                        <p class="item-description">{{ resource.description }}</p>
+                        <div class="item-type" v-if="resource.type">
+                          <h4>Type:</h4>
+                          <p>{{ resource.type }}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </span>
+                <span class="server-resource-templates" v-if="server.resource_templates">
+                  Resource Templates ({{ server.resource_templates.length }}): {{server.resource_templates.map(t => t.name).slice(0, 3).join(', ')}}
+                  <div class="template-list" v-if="server.resource_templates.length > 0">
+                    <div v-for="template in server.resource_templates" :key="template.name" class="item-details" @click.stop="selectResourceTemplate(server, template)" :class="{ 'selected': selectedResourceTemplate?.name === template.name }">
+                      <div class="item-header">
+                        <span class="item-name">{{ template.name }}</span>
+                      </div>
+                      <div class="item-content">
+                        <p class="item-description">{{ template.description }}</p>
+                        <div class="item-schema" v-if="template.schema">
+                          <h4>Schema:</h4>
+                          <pre>{{ JSON.stringify(template.schema, null, 2) }}</pre>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </span>
+              </div>
+              <div class="server-actions">
+                <button @click.stop="toggleConnection(server)" :class="{ 'connected': server.status === 'connected' }" :disabled="server.status === 'connecting' || server.status === 'disconnecting'">
+                  {{ getConnectionButtonText(server) }}
+                </button>
+                <button @click.stop="removeServer(server)" class="btn-delete" :disabled="server.status === 'connecting' || server.status === 'disconnecting'">
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tool Parameter Form -->
+          <div v-if="selectedTool" class="tool-parameter-form">
+            <h3>{{ selectedTool.name }} Parameters</h3>
+            <form @submit.prevent="executeTool">
+              <div v-for="(param, name) in selectedTool.inputSchema.properties" :key="name" class="param-group">
+                <label :for="name">{{ param.title || name }}</label>
+                <input :id="name" v-model="toolParams[name]" :type="getInputType(param)" :placeholder="param.description" :required="selectedTool.inputSchema.required?.includes(name)">
+              </div>
+              <button type="submit" class="btn-execute" :disabled="isExecuting">
+                {{ isExecuting ? 'Executing...' : 'Execute Tool' }}
+              </button>
+            </form>
+
+            <!-- Tool Execution Result -->
+            <div v-if="toolResult" class="tool-result">
+              <h4>Execution Result</h4>
+              <div class="result-content">
+                <pre>{{ typeof toolResult === 'object' ? JSON.stringify(toolResult, null, 2) : toolResult }}</pre>
+              </div>
+            </div>
+          </div>
+
+          <!-- Prompt Parameter Form -->
+          <div v-if="selectedPrompt" class="tool-parameter-form">
+            <h3>{{ selectedPrompt.name }} Parameters</h3>
+            <form @submit.prevent="getPrompt">
+              <div v-for="arg in selectedPrompt.arguments" :key="arg.name" class="param-group">
+                <label :for="arg.name">{{ arg.name }}</label>
+                <input :id="arg.name" v-model="promptParams[arg.name]" type="text" :placeholder="arg.description || `Enter ${arg.name}`" :required="arg.required">
+              </div>
+              <button type="submit" class="btn-execute" :disabled="isExecuting">
+                {{ isExecuting ? 'Executing...' : 'Get Prompt' }}
+              </button>
+            </form>
+
+            <!-- Prompt Execution Result -->
+            <div v-if="promptResult" class="tool-result">
+              <h4>Execution Result</h4>
+              <div class="result-content">
+                <pre>{{ typeof promptResult === 'object' ? JSON.stringify(promptResult, null, 2) : promptResult }}</pre>
+              </div>
+            </div>
+          </div>
+
+          <!-- Resource Parameter Form -->
+          <div v-if="selectedResource" class="tool-parameter-form">
+            <h3>{{ selectedResource.name }} Parameters</h3>
+            <form @submit.prevent="fetchResource">
+              <div v-for="(param, name) in selectedResource.parameters" :key="name" class="param-group">
+                <label :for="name">{{ name }}</label>
+                <input :id="name" v-model="resourceParams[name]" type="text" :placeholder="param.description" :required="param.required">
+              </div>
+              <button type="submit" class="btn-execute" :disabled="isExecuting">
+                {{ isExecuting ? 'Fetching...' : 'Fetch Resource' }}
+              </button>
+            </form>
+
+            <!-- Resource Execution Result -->
+            <div v-if="resourceResult" class="tool-result">
+              <h4>Resource Content</h4>
+              <div class="result-content">
+                <pre>{{ typeof resourceResult === 'object' ? JSON.stringify(resourceResult, null, 2) : resourceResult }}</pre>
+              </div>
+            </div>
+          </div>
+
+          <!-- Resource Template Parameter Form -->
+          <div v-if="selectedResourceTemplate" class="tool-parameter-form">
+            <h3>{{ selectedResourceTemplate.name }} Parameters</h3>
+            <div class="template-url">
+              <h4>Template URL:</h4>
+              <pre>{{ selectedResourceTemplate.uriTemplate }}</pre>
+            </div>
+            <form @submit.prevent="fetchResourceFromTemplate">
+              <div v-for="param in urlParameters" :key="param.name" class="param-group">
+                <label :for="param.name">{{ param.name }}</label>
+                <input :id="param.name" v-model="resourceTemplateParams[param.name]" type="text" :placeholder="param.description" :required="param.required">
+              </div>
+              <button type="submit" class="btn-execute" :disabled="isExecuting">
+                {{ isExecuting ? 'Fetching...' : 'Fetch Resource' }}
+              </button>
+            </form>
+
+            <!-- Resource Template Execution Result -->
+            <div v-if="resourceTemplateResult" class="tool-result">
+              <h4>Execution Result</h4>
+              <div class="result-content">
+                <pre>{{ typeof resourceTemplateResult === 'object' ? JSON.stringify(resourceTemplateResult, null, 2) : resourceTemplateResult }}</pre>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Prompt Parameter Form -->
-      <div v-if="selectedPrompt" class="tool-parameter-form">
-        <h3>{{ selectedPrompt.name }} Parameters</h3>
-        <form @submit.prevent="getPrompt">
-          <div v-for="arg in selectedPrompt.arguments" 
-               :key="arg.name" 
-               class="param-group">
-            <label :for="arg.name">{{ arg.name }}</label>
-            <input 
-              :id="arg.name"
-              v-model="promptParams[arg.name]"
-              type="text"
-              :placeholder="arg.description || `Enter ${arg.name}`"
-              :required="arg.required"
-            >
+        <!-- Chat Content -->
+        <div v-if="activeTab === 'chat'" class="tab-content">
+          <div class="chat-tools-section">
+            <div class="tools-container">
+              <div class="tools-input-wrapper">
+                <textarea v-model="chatInput" placeholder="Enter chat content to list tools" class="tools-input" rows="4"></textarea>
+                <div class="tools-button-wrapper">
+                  <button @click="listToolsOfChat" class="btn-list-tools" :disabled="isExecuting">
+                    {{ isExecuting ? 'Loading...' : 'List Tools' }}
+                  </button>
+                </div>
+              </div>
+              <div v-if="listToolsResult" class="tools-result">
+                <h4>Tools Found:</h4>
+                <div class="result-content">
+                  <pre>{{ JSON.stringify(listToolsResult, null, 2) }}</pre>
+                </div>
+              </div>
+            </div>
           </div>
-          <button type="submit" class="btn-execute" :disabled="isExecuting">
-            {{ isExecuting ? 'Executing...' : 'Get Prompt' }}
-          </button>
-        </form>
 
-        <!-- Prompt Execution Result -->
-        <div v-if="promptResult" class="tool-result">
-          <h4>Execution Result</h4>
-          <div class="result-content">
-            <pre>{{ typeof promptResult === 'object' ? JSON.stringify(promptResult, null, 2) : promptResult }}</pre>
-          </div>
-        </div>
-      </div>
-
-      <!-- Resource Parameter Form -->
-      <div v-if="selectedResource" class="tool-parameter-form">
-        <h3>{{ selectedResource.name }} Parameters</h3>
-        <form @submit.prevent="fetchResource">
-          <div v-for="(param, name) in selectedResource.parameters" 
-               :key="name" 
-               class="param-group">
-            <label :for="name">{{ name }}</label>
-            <input 
-              :id="name"
-              v-model="resourceParams[name]"
-              type="text"
-              :placeholder="param.description"
-              :required="param.required"
-            >
-          </div>
-          <button type="submit" class="btn-execute" :disabled="isExecuting">
-            {{ isExecuting ? 'Fetching...' : 'Fetch Resource' }}
-          </button>
-        </form>
-
-        <!-- Resource Execution Result -->
-        <div v-if="resourceResult" class="tool-result">
-          <h4>Resource Content</h4>
-          <div class="result-content">
-            <pre>{{ typeof resourceResult === 'object' ? JSON.stringify(resourceResult, null, 2) : resourceResult }}</pre>
-          </div>
-        </div>
-      </div>
-
-      <!-- Resource Template Parameter Form -->
-      <div v-if="selectedResourceTemplate" class="tool-parameter-form">
-        <h3>{{ selectedResourceTemplate.name }} Parameters</h3>
-        <div class="template-url">
-          <h4>Template URL:</h4>
-          <pre>{{ selectedResourceTemplate.uriTemplate }}</pre>
-        </div>
-        <form @submit.prevent="fetchResourceFromTemplate">
-          <div v-for="param in urlParameters" 
-               :key="param.name" 
-               class="param-group">
-            <label :for="param.name">{{ param.name }}</label>
-            <input 
-              :id="param.name"
-              v-model="resourceTemplateParams[param.name]"
-              type="text"
-              :placeholder="param.description"
-              :required="param.required"
-            >
-          </div>
-          <button type="submit" class="btn-execute" :disabled="isExecuting">
-            {{ isExecuting ? 'Fetching...' : 'Fetch Resource' }}
-          </button>
-        </form>
-
-        <!-- Resource Template Execution Result -->
-        <div v-if="resourceTemplateResult" class="tool-result">
-          <h4>Execution Result</h4>
-          <div class="result-content">
-            <pre>{{ typeof resourceTemplateResult === 'object' ? JSON.stringify(resourceTemplateResult, null, 2) : resourceTemplateResult }}</pre>
+          <div class="chat-container">
+            <div class="chat-messages">
+              <div v-for="(message, index) in chatMessages" :key="index" :class="['message', message.type]">
+                <div class="message-content">{{ message.content }}</div>
+              </div>
+            </div>
+            <div class="chat-input">
+              <textarea v-model="newMessage" placeholder="Type your message..." @keyup.enter="sendMessage"></textarea>
+              <button @click="sendMessage" class="btn-send">Send</button>
+            </div>
           </div>
         </div>
       </div>
@@ -309,7 +291,12 @@ export default {
         url: ''
       },
       urlError: '',
-      urlParameters: []
+      urlParameters: [],
+      activeTab: 'server',
+      chatMessages: [],
+      newMessage: '',
+      chatInput: '',
+      listToolsResult: null
     }
   },
   async created() {
@@ -322,15 +309,15 @@ export default {
           this.urlError = ''
           return
         }
-        
+
         const url = new URL(this.newServer.url)
-        
+
         // Check if protocol is http or https
         if (!['http:', 'https:'].includes(url.protocol)) {
           this.urlError = 'URL must use http or https protocol'
           return
         }
-        
+
         this.urlError = ''
       } catch (error) {
         this.urlError = 'Please enter a valid URL'
@@ -351,7 +338,7 @@ export default {
       }
 
       try {
-  
+
         const response = await fetch(`${API_BASE_URL}/add_server`, {
           method: 'POST',
           headers: {
@@ -420,7 +407,7 @@ export default {
           if (result.status === 'success') {
             // Refresh the server list to get updated information
             await this.fetchServers()
-            
+
             // Find and select the updated server from the refreshed list
             const updatedServer = this.servers.find(s => s.name === server.name)
             if (updatedServer) {
@@ -442,7 +429,7 @@ export default {
           if (result.status === 'success') {
             // Refresh the server list to get updated information
             await this.fetchServers()
-            
+
             // Find and select the updated server from the refreshed list
             const updatedServer = this.servers.find(s => s.name === server.name)
             if (updatedServer) {
@@ -504,14 +491,14 @@ export default {
       this.selectedPrompt = null;
       this.selectedResource = null;
       this.resourceTemplateParams = {};  // Reset parameters
-      
+
       // Parse URL parameters from template URL
       if (template.uriTemplate) {
         // Find all parameters wrapped in {}
         const regex = /\{([^}]+)\}/g;
         let match;
         const params = [];
-        
+
         while ((match = regex.exec(template.uriTemplate)) !== null) {
           const paramName = match[1];
           params.push({
@@ -521,7 +508,7 @@ export default {
             required: true
           });
         }
-        
+
         this.urlParameters = params;
       } else {
         this.urlParameters = [];
@@ -543,7 +530,7 @@ export default {
       try {
         this.isExecuting = true;
         this.toolResult = null;
-        
+
         const response = await fetch(`${API_BASE_URL}/execute_tool`, {
           method: 'POST',
           headers: {
@@ -577,7 +564,7 @@ export default {
 
         this.isExecuting = true;
         this.promptResult = null;
-        
+
         const response = await fetch(`${API_BASE_URL}/get_prompt`, {
           method: 'POST',
           headers: {
@@ -611,7 +598,7 @@ export default {
 
         this.isExecuting = true;
         this.resourceResult = null;
-        
+
         const response = await fetch(`${API_BASE_URL}/fetch_resource`, {
           method: 'POST',
           headers: {
@@ -644,7 +631,7 @@ export default {
 
         this.isExecuting = true;
         this.resourceTemplateResult = null;
-        
+
         // Generate the final URL by replacing parameters
         let finalUrl = this.selectedResourceTemplate.uriTemplate;
         for (const param of this.urlParameters) {
@@ -654,7 +641,7 @@ export default {
           }
           finalUrl = finalUrl.replace(`{${param.name}}`, encodeURIComponent(value));
         }
-        
+
         const response = await fetch(`${API_BASE_URL}/fetch_resource`, {
           method: 'POST',
           headers: {
@@ -675,6 +662,54 @@ export default {
       } catch (error) {
         console.error('Error fetching resource from template:', error);
         this.resourceTemplateResult = { error: error.message };
+      } finally {
+        this.isExecuting = false;
+      }
+    },
+    sendMessage() {
+      if (!this.newMessage.trim()) return;
+
+      // Add user message
+      this.chatMessages.push({
+        type: 'user',
+        content: this.newMessage
+      });
+
+      // TODO: Add API call to send message and get response
+      // For now, just add a placeholder response
+      setTimeout(() => {
+        this.chatMessages.push({
+          type: 'assistant',
+          content: 'This is a placeholder response. API integration needed.'
+        });
+      }, 1000);
+
+      this.newMessage = '';
+    },
+    async listToolsOfChat() {
+      try {
+        this.isExecuting = true;
+        this.listToolsResult = null;
+
+        const response = await fetch(`${API_BASE_URL}/dev/list_tool_of_chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            content: this.chatInput
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to list tools of chat');
+        }
+
+        const result = await response.json();
+        this.listToolsResult = result;
+      } catch (error) {
+        console.error('Error listing tools of chat:', error);
+        this.listToolsResult = { error: error.message };
       } finally {
         this.isExecuting = false;
       }
@@ -723,7 +758,7 @@ input.error {
 .server-list {
   background: #fff;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .server-item {
@@ -868,7 +903,7 @@ button:hover:not(:disabled) {
   margin-top: 4px;
   min-width: 200px;
   max-width: 400px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   z-index: 1000;
   white-space: normal;
   word-wrap: break-word;
@@ -899,7 +934,7 @@ button:hover:not(:disabled) {
   background-color: white;
   border: 1px solid #ddd;
   border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   z-index: 1000;
   min-width: 300px;
   max-width: 500px;
@@ -1094,4 +1129,276 @@ button:disabled {
   opacity: 0.7;
   cursor: not-allowed;
 }
-</style> 
+
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.dialog-content {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  width: 500px;
+  max-width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.dialog-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.btn-cancel {
+  background-color: #9e9e9e;
+  color: white;
+}
+
+.btn-list-tools {
+  background-color: #673ab7;
+  color: white;
+  margin-bottom: 20px;
+}
+
+.server-actions-header {
+  margin-bottom: 20px;
+}
+
+.main-container {
+  display: flex;
+  min-height: 100vh;
+}
+
+.left-tabs {
+  width: 200px;
+  background-color: #f5f5f5;
+  border-right: 1px solid #ddd;
+  padding: 20px 0;
+}
+
+.tab-item {
+  padding: 15px 20px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-weight: 500;
+  color: #666;
+}
+
+.tab-item:hover {
+  background-color: #e9e9e9;
+}
+
+.tab-item.active {
+  background-color: #e3f2fd;
+  color: #2196f3;
+  border-right: 3px solid #2196f3;
+}
+
+.content-area {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.tab-content {
+  height: 100%;
+}
+
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 40px);
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.message {
+  margin-bottom: 15px;
+  max-width: 80%;
+}
+
+.message.user {
+  margin-left: auto;
+}
+
+.message-content {
+  padding: 10px 15px;
+  border-radius: 8px;
+  background-color: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.message.user .message-content {
+  background-color: #e3f2fd;
+}
+
+.chat-input {
+  display: flex;
+  gap: 10px;
+}
+
+.chat-input textarea {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  resize: none;
+  height: 60px;
+  font-family: inherit;
+}
+
+.btn-send {
+  background-color: #2196f3;
+  color: white;
+  padding: 0 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-send:hover {
+  background-color: #1976d2;
+}
+
+.chat-tools-section {
+  margin-bottom: 20px;
+  padding: 0;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  display: flex;
+  justify-content: center;
+  min-height: 200px;
+}
+
+.tools-container {
+  width: 100%;
+  max-width: 800px;
+  padding: 20px;
+}
+
+.tools-input-wrapper {
+  position: relative;
+  margin-bottom: 15px;
+  background-color: white;
+  border-radius: 8px;
+  padding: 15px;
+  padding-bottom: 50px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.tools-input {
+  width: 100%;
+  padding: 0;
+  border: none;
+  font-size: 14px;
+  resize: none;
+  background: transparent;
+  line-height: 1.5;
+  display: block;
+  margin: 0;
+  min-height: 100px;
+  font-family: inherit;
+  vertical-align: top;
+}
+
+.tools-input:focus {
+  outline: none;
+}
+
+.tools-button-wrapper {
+  position: absolute;
+  bottom: 15px;
+  right: 15px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+}
+
+.btn-list-tools {
+  background-color: #673ab7;
+  color: white;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.btn-list-tools:hover:not(:disabled) {
+  background-color: #5e35b1;
+  transform: translateY(-1px);
+}
+
+.btn-list-tools:disabled {
+  background-color: #b0bec5;
+  cursor: not-allowed;
+}
+
+.tools-result {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.tools-result h4 {
+  margin: 0 0 15px 0;
+  color: #333;
+  font-size: 16px;
+}
+
+.server-list-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.btn-refresh {
+  background: none;
+  border: none;
+  padding: 5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.btn-refresh:hover:not(:disabled) {
+  background-color: #f0f0f0;
+}
+
+.btn-refresh:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.refresh-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+</style>
