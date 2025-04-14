@@ -1,9 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/Home.vue'
-import ChatView from '../views/ChatView.vue'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import ServerManagerView from '../views/ServerManagerView.vue'
+import ChatRoomList from '../components/ChatRoomList.vue'
+import ChatRoom from '../components/ChatRoom.vue'
 import store from '../store'
 
 const routes = [
@@ -16,7 +17,13 @@ const routes = [
   {
     path: '/chat',
     name: 'chat',
-    component: ChatView,
+    component: ChatRoomList,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/chat/:roomId',
+    name: 'chat-room',
+    component: ChatRoom,
     meta: { requiresAuth: true }
   },
   {

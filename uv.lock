@@ -691,7 +691,7 @@ wheels = [
 ]
 
 [[package]]
-name = "mcp-debug"
+name = "mcp-chat"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
