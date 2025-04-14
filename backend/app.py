@@ -23,12 +23,13 @@ from dotenv import load_dotenv
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from datetime import timedelta
 
-from .models import Message, ChatRoom, User
-from .database import (
+from backend.models import Message, ChatRoom, User
+from backend.database import (
     save_message, get_room_messages, create_chat_room,
-    get_chat_room, add_participant_to_room, get_current_user
+    get_chat_room, add_participant_to_room, get_current_user,
+    cleanup_expired_tokens
 )
-from .routes import auth
+from backend.routes import auth
 
 load_dotenv()
 
@@ -413,6 +414,21 @@ async def websocket_endpoint(
     except Exception as e:
         manager.disconnect(websocket, room_id)
         await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+
+
+# Background task to clean up expired tokens
+async def cleanup_tokens_task():
+    while True:
+        try:
+            await cleanup_expired_tokens()
+        except Exception as e:
+            logger.error(f"Error cleaning up expired tokens: {e}")
+        await asyncio.sleep(3600)  # Run every hour
+
+@app.on_event("startup")
+async def startup_event():
+    # Start the token cleanup task
+    asyncio.create_task(cleanup_tokens_task())
 
 
 if __name__ == "__main__":

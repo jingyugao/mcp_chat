@@ -1,6 +1,6 @@
 from datetime import timedelta
 from fastapi import APIRouter, HTTPException, Depends, status
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm, HTTPAuthorizationCredentials
 from ..database import (
     get_user_by_username,
     get_user_by_email,
@@ -8,7 +8,9 @@ from ..database import (
     verify_password,
     create_access_token,
     get_current_user,
-    ACCESS_TOKEN_EXPIRE_MINUTES
+    delete_token,
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    security
 )
 from ..models import UserCreate, Token, User, UserLogin
 
@@ -68,4 +70,10 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
         user_data['id'] = str(user_data['_id'])
     
     # Return the User model
-    return User(**user_data) 
+    return User(**user_data)
+
+@router.post("/logout")
+async def logout(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    await delete_token(token)
+    return {"message": "Successfully logged out"} 

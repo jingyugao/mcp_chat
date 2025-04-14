@@ -7,15 +7,14 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
     && rm -rf /var/lib/apt/lists/*
-
+RUN pip install uv
 # 复制项目文件
 COPY requirements.txt ./
 COPY .env ./
 COPY backend ./backend
 
 # 使用uv安装Python依赖
-RUN pip install uv && \
-    uv pip install --system -r requirements.txt
+RUN uv pip install --system -r requirements.txt
 
 # 设置环境变量
 ENV PYTHONPATH=/app

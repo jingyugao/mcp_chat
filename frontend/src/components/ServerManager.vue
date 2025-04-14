@@ -5,8 +5,8 @@
         <div class="tab-item" :class="{ active: activeTab === 'server' }" @click="activeTab = 'server'">
           Server Manage
         </div>
-        <div class="tab-item" :class="{ active: activeTab === 'chat' }" @click="activeTab = 'chat'">
-          Chat
+        <div class="tab-item" :class="{ active: activeTab === 'tool' }" @click="activeTab = 'tool'">
+          Tool
         </div>
       </div>
 
@@ -226,14 +226,14 @@
           </div>
         </div>
 
-        <!-- Chat Content -->
-        <div v-if="activeTab === 'chat'" class="tab-content">
-          <div class="chat-tools-section">
+        <!-- Tool Content -->
+        <div v-if="activeTab === 'tool'" class="tab-content">
+          <div class="tool-tools-section">
             <div class="tools-container">
               <div class="tools-input-wrapper">
-                <textarea v-model="chatInput" placeholder="Enter chat content to list tools" class="tools-input" rows="4"></textarea>
+                <textarea v-model="toolInput" placeholder="Enter tool content to list tools" class="tools-input" rows="4"></textarea>
                 <div class="tools-button-wrapper">
-                  <button @click="listToolsOfChat" class="btn-list-tools" :disabled="isExecuting">
+                  <button @click="listToolsOfTool" class="btn-list-tools" :disabled="isExecuting">
                     {{ isExecuting ? 'Loading...' : 'List Tools' }}
                   </button>
                 </div>
@@ -247,13 +247,13 @@
             </div>
           </div>
 
-          <div class="chat-container">
-            <div class="chat-messages">
-              <div v-for="(message, index) in chatMessages" :key="index" :class="['message', message.type]">
+          <div class="tool-container">
+            <div class="tool-messages">
+              <div v-for="(message, index) in toolMessages" :key="index" :class="['message', message.type]">
                 <div class="message-content">{{ message.content }}</div>
               </div>
             </div>
-            <div class="chat-input">
+            <div class="tool-input">
               <textarea v-model="newMessage" placeholder="Type your message..." @keyup.enter="sendMessage"></textarea>
               <button @click="sendMessage" class="btn-send">Send</button>
             </div>
@@ -293,9 +293,9 @@ export default {
       urlError: '',
       urlParameters: [],
       activeTab: 'server',
-      chatMessages: [],
+      toolMessages: [],
       newMessage: '',
-      chatInput: '',
+      toolInput: '',
       listToolsResult: null
     }
   },
@@ -670,7 +670,7 @@ export default {
       if (!this.newMessage.trim()) return;
 
       // Add user message
-      this.chatMessages.push({
+      this.toolMessages.push({
         type: 'user',
         content: this.newMessage
       });
@@ -678,7 +678,7 @@ export default {
       // TODO: Add API call to send message and get response
       // For now, just add a placeholder response
       setTimeout(() => {
-        this.chatMessages.push({
+        this.toolMessages.push({
           type: 'assistant',
           content: 'This is a placeholder response. API integration needed.'
         });
@@ -686,7 +686,7 @@ export default {
 
       this.newMessage = '';
     },
-    async listToolsOfChat() {
+    async listToolsOfTool() {
       try {
         this.isExecuting = true;
         this.listToolsResult = null;
@@ -697,18 +697,18 @@ export default {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            content: this.chatInput
+            content: this.toolInput
           })
         });
 
         if (!response.ok) {
-          throw new Error('Failed to list tools of chat');
+          throw new Error('Failed to list tools of tool');
         }
 
         const result = await response.json();
         this.listToolsResult = result;
       } catch (error) {
-        console.error('Error listing tools of chat:', error);
+        console.error('Error listing tools of tool:', error);
         this.listToolsResult = { error: error.message };
       } finally {
         this.isExecuting = false;
@@ -1214,13 +1214,13 @@ button:disabled {
   height: 100%;
 }
 
-.chat-container {
+.tool-container {
   display: flex;
   flex-direction: column;
   height: calc(100vh - 40px);
 }
 
-.chat-messages {
+.tool-messages {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
@@ -1249,12 +1249,12 @@ button:disabled {
   background-color: #e3f2fd;
 }
 
-.chat-input {
+.tool-input {
   display: flex;
   gap: 10px;
 }
 
-.chat-input textarea {
+.tool-input textarea {
   flex: 1;
   padding: 10px;
   border: 1px solid #ddd;
@@ -1278,7 +1278,7 @@ button:disabled {
   background-color: #1976d2;
 }
 
-.chat-tools-section {
+.tool-tools-section {
   margin-bottom: 20px;
   padding: 0;
   background-color: #f5f5f5;

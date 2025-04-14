@@ -7,6 +7,7 @@ from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from .models import User, UserCreate, TokenData
+import asyncio
 
 # MongoDB连接
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
@@ -25,6 +26,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 users_collection = db.users
 messages_collection = db.messages
 chat_rooms_collection = db.chat_rooms
+tokens_collection = db.tokens  # New collection for tokens
 
 # 创建 Bearer token 验证器
 security = HTTPBearer()
@@ -50,6 +52,31 @@ async def create_user(user: UserCreate):
 def verify_password(plain_password: str, hashed_password: str):
     return pwd_context.verify(plain_password, hashed_password)
 
+async def save_token(username: str, token: str, expires: datetime):
+    await tokens_collection.insert_one({
+        "username": username,
+        "token": token,
+        "expires": expires
+    })
+
+async def get_token(token: str):
+    return await tokens_collection.find_one({
+        "token": token,
+        "expires": {"$gt": datetime.utcnow()}
+    })
+
+async def delete_token(token: str):
+    await tokens_collection.delete_one({"token": token})
+
+async def delete_user_tokens(username: str):
+    await tokens_collection.delete_many({"username": username})
+
+# Cleanup expired tokens periodically
+async def cleanup_expired_tokens():
+    await tokens_collection.delete_many({
+        "expires": {"$lt": datetime.utcnow()}
+    })
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     if expires_delta:
@@ -58,11 +85,22 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
         expire = datetime.utcnow() + timedelta(minutes=15)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    # Store token in MongoDB
+    asyncio.create_task(save_token(data["sub"], encoded_jwt, expire))
     return encoded_jwt
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
         token = credentials.credentials
+        # Check if token exists in MongoDB
+        token_data = await get_token(token)
+        if not token_data:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token is invalid or expired",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+            
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         if username is None:

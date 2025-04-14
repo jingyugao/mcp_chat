@@ -20,30 +20,15 @@ shell-backend:
 rebuild:
 	docker compose build
 
-# 重新构建后端服务
-rebuild-backend:
-	docker compose build backend
-
-# 重新构建前端服务
-rebuild-frontend:
-	docker compose build frontend
 
 # 重启所有服务
 restart:
 	docker compose down
 	docker compose up -d
 
-# 重启后端服务
-restart-backend:
-	docker compose stop backend
-	docker compose rm -f backend
-	docker compose up -d backend
-
-# 重启前端服务
-restart-frontend:
-	docker compose stop frontend
-	docker compose rm -f frontend
-	docker compose up -d frontend
+restart_rebuild:
+	make rebuild
+	make restart
 
 # 显示帮助信息
 help:

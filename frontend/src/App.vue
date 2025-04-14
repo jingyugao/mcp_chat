@@ -11,7 +11,7 @@
 </template>
 
 <script>
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
 
@@ -20,13 +20,53 @@ export default {
   setup() {
     const store = useStore()
     const router = useRouter()
+    const refreshInterval = ref(null)
 
     const isAuthenticated = computed(() => store.getters.isAuthenticated)
 
+    const startTokenRefresh = () => {
+      // Refresh token every 15 minutes
+      refreshInterval.value = setInterval(() => {
+        if (store.getters.isAuthenticated) {
+          store.dispatch('refreshToken')
+        }
+      }, 15 * 60 * 1000) // 15 minutes
+    }
+
+    const stopTokenRefresh = () => {
+      if (refreshInterval.value) {
+        clearInterval(refreshInterval.value)
+        refreshInterval.value = null
+      }
+    }
+
     const logout = () => {
+      stopTokenRefresh()
       store.dispatch('logout')
       router.push('/login')
     }
+
+    onMounted(() => {
+      if (store.getters.isAuthenticated) {
+        startTokenRefresh()
+      }
+    })
+
+    onUnmounted(() => {
+      stopTokenRefresh()
+    })
+
+    // Watch authentication state changes
+    store.watch(
+      (state) => state.isAuthenticated,
+      (newValue) => {
+        if (newValue) {
+          startTokenRefresh()
+        } else {
+          stopTokenRefresh()
+        }
+      }
+    )
 
     return {
       isAuthenticated,
