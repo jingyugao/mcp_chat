@@ -43,13 +43,14 @@
 <script>
 import { ref, computed } from 'vue'
 import { useStore } from 'vuex'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 
 export default {
   name: 'LoginView',
   setup() {
     const store = useStore()
     const router = useRouter()
+    const route = useRoute()
     const username = ref('')
     const password = ref('')
     const isLoading = ref(false)
@@ -64,7 +65,9 @@ export default {
           username: username.value,
           password: password.value
         })
-        router.push('/')
+        // Redirect to the intended destination or home
+        const redirectPath = route.query.redirect || '/'
+        router.push(redirectPath)
       } catch (err) {
         // Error is already handled in the store
       } finally {

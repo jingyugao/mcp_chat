@@ -1,27 +1,17 @@
 import { createStore } from 'vuex'
 import API_URLS from '../api/config'
 
-// Cookie utility functions
-const setCookie = (name, value, days = 7) => {
-  const date = new Date()
-  date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000))
-  const expires = `expires=${date.toUTCString()}`
-  document.cookie = `${name}=${value};${expires};path=/`
-}
-
-const getCookie = (name) => {
-  const nameEQ = `${name}=`
-  const ca = document.cookie.split(';')
-  for (let i = 0; i < ca.length; i++) {
-    let c = ca[i]
-    while (c.charAt(0) === ' ') c = c.substring(1, c.length)
-    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length)
+// Token storage utility functions
+const setToken = (token) => {
+  if (token) {
+    localStorage.setItem('access_token', token)
+  } else {
+    localStorage.removeItem('access_token')
   }
-  return null
 }
 
-const deleteCookie = (name) => {
-  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:01 GMT;path=/`
+const getToken = () => {
+  return localStorage.getItem('access_token')
 }
 
 // Token validation function
@@ -41,13 +31,26 @@ const isTokenValid = (token) => {
   }
 }
 
+// API request helper with auth token
+const authFetch = async (url, options = {}) => {
+  const token = getToken()
+  if (token) {
+    options.headers = {
+      ...options.headers,
+      'Authorization': `Bearer ${token}`
+    }
+  }
+  return fetch(url, options)
+}
+
 export default createStore({
   state: {
     isAuthenticated: false,
     user: null,
     token: null,
     registrationError: null,
-    loginError: null
+    loginError: null,
+    initialized: false
   },
   mutations: {
     setAuthenticated(state, value) {
@@ -58,18 +61,22 @@ export default createStore({
     },
     setToken(state, token) {
       state.token = token
+      setToken(token)
     },
     setRegistrationError(state, error) {
       state.registrationError = error
     },
     setLoginError(state, error) {
       state.loginError = error
+    },
+    setInitialized(state, value) {
+      state.initialized = value
     }
   },
   actions: {
     async register({ commit }, userData) {
       try {
-        const response = await fetch(API_URLS.auth.register, {
+        const response = await authFetch(API_URLS.auth.register, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -111,16 +118,11 @@ export default createStore({
           throw new Error('Invalid token received')
         }
 
-        // Store the token in cookie and state
-        setCookie('access_token', token)
+        // Store the token in localStorage and state
         commit('setToken', token)
         
         // Get user info
-        const userResponse = await fetch(API_URLS.auth.me, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        })
+        const userResponse = await authFetch(API_URLS.auth.me)
 
         if (!userResponse.ok) {
           throw new Error('Failed to get user info')
@@ -140,52 +142,45 @@ export default createStore({
       }
     },
     async logout({ commit }) {
-      const token = getCookie('access_token')
+      const token = getToken()
       if (token) {
         try {
-          await fetch(API_URLS.auth.logout, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
+          await authFetch(API_URLS.auth.logout, {
+            method: 'POST'
           })
         } catch (error) {
           console.error('Logout error:', error)
         }
       }
-      deleteCookie('access_token')
       commit('setToken', null)
       commit('setUser', null)
       commit('setAuthenticated', false)
     },
     async initAuth({ commit, dispatch }) {
-      const token = getCookie('access_token')
+      const token = getToken()
       
       if (!token || !isTokenValid(token)) {
         dispatch('logout')
-        return
-      }
+      } else {
+        try {
+          commit('setToken', token)
+          
+          const userResponse = await authFetch(API_URLS.auth.me)
 
-      try {
-        commit('setToken', token)
-        
-        const userResponse = await fetch(API_URLS.auth.me, {
-          headers: {
-            'Authorization': `Bearer ${token}`
+          if (!userResponse.ok) {
+            throw new Error('Token invalid')
           }
-        })
 
-        if (!userResponse.ok) {
-          throw new Error('Token invalid')
+          const userInfo = await userResponse.json()
+          commit('setUser', userInfo)
+          commit('setAuthenticated', true)
+        } catch (error) {
+          console.error('Auth initialization error:', error)
+          dispatch('logout')
         }
-
-        const userInfo = await userResponse.json()
-        commit('setUser', userInfo)
-        commit('setAuthenticated', true)
-      } catch (error) {
-        console.error('Auth initialization error:', error)
-        dispatch('logout')
       }
+      
+      commit('setInitialized', true)
     },
     // Add automatic token refresh
     async refreshToken({ state, commit, dispatch }) {
@@ -195,11 +190,8 @@ export default createStore({
       }
 
       try {
-        const response = await fetch(API_URLS.auth.refresh, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${state.token}`
-          }
+        const response = await authFetch(API_URLS.auth.refresh, {
+          method: 'POST'
         })
 
         if (!response.ok) {
@@ -213,7 +205,6 @@ export default createStore({
           throw new Error('Invalid token received')
         }
 
-        setCookie('access_token', newToken)
         commit('setToken', newToken)
       } catch (error) {
         console.error('Token refresh error:', error)
@@ -226,6 +217,7 @@ export default createStore({
     user: state => state.user,
     token: state => state.token,
     registrationError: state => state.registrationError,
-    loginError: state => state.loginError
+    loginError: state => state.loginError,
+    initialized: state => state.initialized
   }
 }) 

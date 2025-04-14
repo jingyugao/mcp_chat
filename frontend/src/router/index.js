@@ -36,6 +36,11 @@ const routes = [
     name: 'register',
     component: RegisterView,
     meta: { guest: true }
+  },
+  // Add catch-all route for 404
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/'
   }
 ]
 
@@ -45,21 +50,31 @@ const router = createRouter({
 })
 
 // Navigation guards
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
+  // Try to initialize auth state if not already done
+  if (!store.state.initialized) {
+    await store.dispatch('initAuth')
+  }
+
   const isAuthenticated = store.getters.isAuthenticated
 
   // Routes that require authentication
   if (to.matched.some(record => record.meta.requiresAuth)) {
     if (!isAuthenticated) {
-      next('/login')
+      // Save the intended destination
+      next({
+        path: '/login',
+        query: { redirect: to.fullPath }
+      })
     } else {
       next()
     }
   }
-  // Routes for guests only (like login)
+  // Routes for guests only (like login and register)
   else if (to.matched.some(record => record.meta.guest)) {
     if (isAuthenticated) {
-      next('/')
+      // If user is already logged in, redirect to home
+      next({ path: '/' })
     } else {
       next()
     }
