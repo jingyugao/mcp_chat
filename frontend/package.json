@@ -15,7 +15,10 @@
     "core-js": "^3.8.3",
     "cors": "^2.8.5",
     "express": "^5.1.0",
-    "vue": "^3.2.13"
+    "marked": "^4.3.0",
+    "vue": "^3.2.13",
+    "vue-router": "^4.0.13",
+    "vuex": "^4.0.2"
   },
   "devDependencies": {
     "@babel/core": "^7.26.10",

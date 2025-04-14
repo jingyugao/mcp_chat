@@ -23,20 +23,19 @@ from dotenv import load_dotenv
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from datetime import timedelta
 
-from .models import UserCreate, User, Message, ChatRoom, Token
+from .models import Message, ChatRoom, User
 from .database import (
-    create_user, get_user_by_username, get_user_by_email,
-    verify_password, create_access_token, get_current_user,
     save_message, get_room_messages, create_chat_room,
-    get_chat_room, add_participant_to_room,
-    ACCESS_TOKEN_EXPIRE_MINUTES
+    get_chat_room, add_participant_to_room, get_current_user
 )
+from .routes import auth
 
 load_dotenv()
 
 # Configure logging
 logging.basicConfig(
-    level=logging.ERROR, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -53,12 +52,19 @@ llm = OpenAI(
 @app.middleware("http")
 async def error_handling_middleware(request: Request, call_next):
     try:
-        return await call_next(request)
+        response = await call_next(request)
+        return response
+    except HTTPException as http_exc:
+        # Log the exception details
+        logger.error(f"HTTP Exception: {http_exc.status_code} - {http_exc.detail}")
+        # Re-raise the exception to let FastAPI handle it
+        raise http_exc
     except Exception as e:
-        # Log the full error with traceback
+        # Log the full error with traceback for unexpected errors
         logger.error(f"Error occurred: {str(e)}\n{traceback.format_exc()}")
         return JSONResponse(
-            status_code=500, content={"detail": "Internal server error occurred"}
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            content={"detail": "Internal server error occurred"}
         )
 
 
@@ -70,6 +76,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include the authentication router
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 
 
 class ServerInfo(BaseModel):
@@ -342,38 +351,6 @@ class ConnectionManager:
                 await connection.send_json(message)
 
 manager = ConnectionManager()
-
-# 认证相关接口
-@app.post("/register", response_model=User)
-async def register(user: UserCreate):
-    db_user = await get_user_by_username(user.username)
-    if db_user:
-        raise HTTPException(
-            status_code=400,
-            detail="Username already registered"
-        )
-    db_user = await get_user_by_email(user.email)
-    if db_user:
-        raise HTTPException(
-            status_code=400,
-            detail="Email already registered"
-        )
-    return await create_user(user)
-
-@app.post("/token", response_model=Token)
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = await get_user_by_username(form_data.username)
-    if not user or not verify_password(form_data.password, user["password"]):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user["username"]}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
 
 # 聊天室相关接口
 @app.post("/chat-rooms", response_model=ChatRoom)

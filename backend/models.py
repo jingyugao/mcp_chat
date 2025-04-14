@@ -13,6 +13,10 @@ class User(UserBase):
     id: str = Field(default_factory=str)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
 class Message(BaseModel):
     id: str = Field(default_factory=str)
     content: str

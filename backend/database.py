@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from .models import User, UserCreate, TokenData
 
 # MongoDB连接
@@ -23,6 +25,9 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 users_collection = db.users
 messages_collection = db.messages
 chat_rooms_collection = db.chat_rooms
+
+# 创建 Bearer token 验证器
+security = HTTPBearer()
 
 async def get_user_by_username(username: str):
     return await users_collection.find_one({"username": username})
@@ -55,18 +60,31 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-async def get_current_user(token: str):
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
+        token = credentials.credentials
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         if username is None:
-            return None
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         token_data = TokenData(username=username)
     except JWTError:
-        return None
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     user = await get_user_by_username(username=token_data.username)
     if user is None:
-        return None
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     return user
 
 # 消息相关函数
