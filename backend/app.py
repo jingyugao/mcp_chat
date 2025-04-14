@@ -3,13 +3,14 @@ from calendar import c
 from contextlib import asynccontextmanager
 import os
 from pydoc import cli
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
 import traceback
+import json
 
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Set
 from pydantic import BaseModel
 
 from mcp import ClientSession
@@ -19,12 +20,23 @@ import mcp as mcp
 from openai import OpenAI
 
 from dotenv import load_dotenv
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from datetime import timedelta
+
+from backend.models import Message, ChatRoom, User
+from backend.database import (
+    save_message, get_room_messages, create_chat_room,
+    get_chat_room, add_participant_to_room, get_current_user,
+    cleanup_expired_tokens
+)
+from backend.routes import auth
 
 load_dotenv()
 
 # Configure logging
 logging.basicConfig(
-    level=logging.ERROR, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -41,12 +53,19 @@ llm = OpenAI(
 @app.middleware("http")
 async def error_handling_middleware(request: Request, call_next):
     try:
-        return await call_next(request)
+        response = await call_next(request)
+        return response
+    except HTTPException as http_exc:
+        # Log the exception details
+        logger.error(f"HTTP Exception: {http_exc.status_code} - {http_exc.detail}")
+        # Re-raise the exception to let FastAPI handle it
+        raise http_exc
     except Exception as e:
-        # Log the full error with traceback
+        # Log the full error with traceback for unexpected errors
         logger.error(f"Error occurred: {str(e)}\n{traceback.format_exc()}")
         return JSONResponse(
-            status_code=500, content={"detail": "Internal server error occurred"}
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            content={"detail": "Internal server error occurred"}
         )
 
 
@@ -58,6 +77,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include the authentication router
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 
 
 class ServerInfo(BaseModel):
@@ -302,6 +324,111 @@ async def list_tool_of_chat(request: Dict[str, str]):
         "status": "success",
         "result": message.tool_calls,
     }
+
+
+# OAuth2
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+# WebSocket连接管理
+class ConnectionManager:
+    def __init__(self):
+        # room_id -> set of WebSocket connections
+        self.active_connections: Dict[str, Set[WebSocket]] = {}
+        
+    async def connect(self, websocket: WebSocket, room_id: str):
+        await websocket.accept()
+        if room_id not in self.active_connections:
+            self.active_connections[room_id] = set()
+        self.active_connections[room_id].add(websocket)
+    
+    def disconnect(self, websocket: WebSocket, room_id: str):
+        self.active_connections[room_id].remove(websocket)
+        if not self.active_connections[room_id]:
+            del self.active_connections[room_id]
+    
+    async def broadcast(self, message: dict, room_id: str):
+        if room_id in self.active_connections:
+            for connection in self.active_connections[room_id]:
+                await connection.send_json(message)
+
+manager = ConnectionManager()
+
+# 聊天室相关接口
+@app.post("/chat-rooms", response_model=ChatRoom)
+async def create_room(
+    name: str,
+    current_user: User = Depends(get_current_user)
+):
+    return await create_chat_room(name, str(current_user["_id"]))
+
+@app.get("/chat-rooms/{room_id}/messages")
+async def get_messages(
+    room_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    messages = await get_room_messages(room_id)
+    return messages
+
+@app.websocket("/ws/{room_id}")
+async def websocket_endpoint(
+    websocket: WebSocket,
+    room_id: str,
+    token: str
+):
+    user = await get_current_user(token)
+    if not user:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+    
+    await manager.connect(websocket, room_id)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            message_data = json.loads(data)
+            
+            # 保存消息到数据库
+            message = await save_message(
+                content=message_data["content"],
+                sender_id=str(user["_id"]),
+                sender_username=user["username"],
+                room_id=room_id
+            )
+            
+            # 广播消息给房间内所有用户
+            await manager.broadcast({
+                "type": "message",
+                "data": {
+                    "id": str(message["_id"]),
+                    "content": message["content"],
+                    "sender_id": message["sender_id"],
+                    "sender_username": message["sender_username"],
+                    "created_at": message["created_at"].isoformat()
+                }
+            }, room_id)
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, room_id)
+        await manager.broadcast({
+            "type": "system",
+            "data": f"User {user['username']} left the chat"
+        }, room_id)
+    except Exception as e:
+        manager.disconnect(websocket, room_id)
+        await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+
+
+# Background task to clean up expired tokens
+async def cleanup_tokens_task():
+    while True:
+        try:
+            await cleanup_expired_tokens()
+        except Exception as e:
+            logger.error(f"Error cleaning up expired tokens: {e}")
+        await asyncio.sleep(3600)  # Run every hour
+
+@app.on_event("startup")
+async def startup_event():
+    # Start the token cleanup task
+    asyncio.create_task(cleanup_tokens_task())
 
 
 if __name__ == "__main__":
