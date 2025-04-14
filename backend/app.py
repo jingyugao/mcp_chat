@@ -133,7 +133,7 @@ class MCPClient:
 
 
 mcp_clients: Dict[str, MCPClient] = {
-    "default": MCPClient(url="http://127.0.0.1:9999/sse", name="default")
+    "default": MCPClient(url="http://host.docker.internal:9999/sse", name="default")
 }
 
 
