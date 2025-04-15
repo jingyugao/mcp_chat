@@ -31,9 +31,9 @@ from dotenv import load_dotenv
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from datetime import timedelta
 
-from models import User
-from database import get_current_user, cleanup_expired_tokens
-from routes import auth, chat
+from backend.models import User
+from backend.database import get_current_user, cleanup_expired_tokens
+from backend.routes import auth, chat
 
 load_dotenv()
 
