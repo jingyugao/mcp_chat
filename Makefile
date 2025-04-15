@@ -20,6 +20,9 @@ shell-backend:
 rebuild:
 	docker compose build
 
+re-backend:
+	docker compose build backend
+	docker compose up -d backend
 
 # 重启所有服务
 restart:

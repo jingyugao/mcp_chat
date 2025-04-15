@@ -265,6 +265,8 @@
 </template>
 
 <script>
+import { httpClient } from '../utils/http-client'
+
 const API_BASE_URL = 'http://localhost:14000/api'
 
 export default {
@@ -325,7 +327,7 @@ export default {
     },
     async fetchServers() {
       try {
-        const response = await fetch(`${API_BASE_URL}/servers`)
+        const response = await httpClient.get(`${API_BASE_URL}/servers`)
         if (!response.ok) throw new Error('Failed to fetch servers')
         this.servers = await response.json()
       } catch (error) {
@@ -338,17 +340,11 @@ export default {
       }
 
       try {
-
-        const response = await fetch(`${API_BASE_URL}/add_server`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            url: this.newServer.url,
-            name: this.newServer.name
-          })
+        const response = await httpClient.post(`${API_BASE_URL}/add_server`, {
+          url: this.newServer.url,
+          name: this.newServer.name
         })
+        
         if (!response.ok) {
           throw new Error('Failed to add server')
         }
@@ -366,9 +362,7 @@ export default {
     },
     async removeServer(server) {
       try {
-        const response = await fetch(`${API_BASE_URL}/remove_server?name=${encodeURIComponent(server.name)}`, {
-          method: 'DELETE'
-        })
+        const response = await httpClient.delete(`${API_BASE_URL}/remove_server?name=${encodeURIComponent(server.name)}`)
 
         if (!response.ok) {
           throw new Error('Failed to remove server')
@@ -395,9 +389,7 @@ export default {
         server.status = isDisconnecting ? 'disconnecting' : 'connecting'
 
         if (isDisconnecting) {
-          const response = await fetch(`${API_BASE_URL}/disconnect_server?name=${server.name}`, {
-            method: 'POST'
-          })
+          const response = await httpClient.post(`${API_BASE_URL}/disconnect_server?name=${server.name}`)
 
           if (!response.ok) {
             throw new Error('Failed to disconnect from server')
@@ -405,10 +397,7 @@ export default {
 
           const result = await response.json()
           if (result.status === 'success') {
-            // Refresh the server list to get updated information
             await this.fetchServers()
-
-            // Find and select the updated server from the refreshed list
             const updatedServer = this.servers.find(s => s.name === server.name)
             if (updatedServer) {
               this.selectServer(updatedServer)
@@ -417,9 +406,7 @@ export default {
             throw new Error(result.message || 'Failed to disconnect from server')
           }
         } else {
-          const response = await fetch(`${API_BASE_URL}/connect_server?name=${server.name}`, {
-            method: 'POST'
-          })
+          const response = await httpClient.post(`${API_BASE_URL}/connect_server?name=${server.name}`)
 
           if (!response.ok) {
             throw new Error('Failed to connect to server')
@@ -427,10 +414,7 @@ export default {
 
           const result = await response.json()
           if (result.status === 'success') {
-            // Refresh the server list to get updated information
             await this.fetchServers()
-
-            // Find and select the updated server from the refreshed list
             const updatedServer = this.servers.find(s => s.name === server.name)
             if (updatedServer) {
               this.selectServer(updatedServer)
@@ -528,142 +512,117 @@ export default {
     },
     async executeTool() {
       try {
-        this.isExecuting = true;
-        this.toolResult = null;
+        this.isExecuting = true
+        this.toolResult = null
 
-        const response = await fetch(`${API_BASE_URL}/execute_tool`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            server: this.selectedServer.name,
-            tool: this.selectedTool.name,
-            parameters: this.toolParams
-          })
-        });
+        const response = await httpClient.post(`${API_BASE_URL}/execute_tool`, {
+          server: this.selectedServer.name,
+          tool: this.selectedTool.name,
+          parameters: this.toolParams
+        })
 
         if (!response.ok) {
-          throw new Error('Failed to execute tool');
+          throw new Error('Failed to execute tool')
         }
 
-        const result = await response.json();
-        this.toolResult = result;
+        const result = await response.json()
+        this.toolResult = result
       } catch (error) {
-        console.error('Error executing tool:', error);
-        this.toolResult = { error: error.message };
+        console.error('Error executing tool:', error)
+        this.toolResult = { error: error.message }
       } finally {
-        this.isExecuting = false;
+        this.isExecuting = false
       }
     },
     async getPrompt() {
       try {
         if (!this.selectedServer || !this.selectedPrompt) {
-          throw new Error('Please select a server and prompt first');
+          throw new Error('Please select a server and prompt first')
         }
 
-        this.isExecuting = true;
-        this.promptResult = null;
+        this.isExecuting = true
+        this.promptResult = null
 
-        const response = await fetch(`${API_BASE_URL}/get_prompt`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            server: this.selectedServer.name,
-            prompt: this.selectedPrompt.name,
-            parameters: this.promptParams
-          })
-        });
+        const response = await httpClient.post(`${API_BASE_URL}/get_prompt`, {
+          server: this.selectedServer.name,
+          prompt: this.selectedPrompt.name,
+          parameters: this.promptParams
+        })
 
         if (!response.ok) {
-          throw new Error('Failed to get prompt');
+          throw new Error('Failed to get prompt')
         }
 
-        const result = await response.json();
-        this.promptResult = result;
+        const result = await response.json()
+        this.promptResult = result
       } catch (error) {
-        console.error('Error getting prompt:', error);
-        this.promptResult = { error: error.message };
+        console.error('Error getting prompt:', error)
+        this.promptResult = { error: error.message }
       } finally {
-        this.isExecuting = false;
+        this.isExecuting = false
       }
     },
     async fetchResource() {
       try {
         if (!this.selectedServer || !this.selectedResource) {
-          throw new Error('Please select a server and resource first');
+          throw new Error('Please select a server and resource first')
         }
 
-        this.isExecuting = true;
-        this.resourceResult = null;
+        this.isExecuting = true
+        this.resourceResult = null
 
-        const response = await fetch(`${API_BASE_URL}/fetch_resource`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            server: this.selectedServer.name,
-            resource: this.selectedResource.name
-          })
-        });
+        const response = await httpClient.post(`${API_BASE_URL}/fetch_resource`, {
+          server: this.selectedServer.name,
+          resource: this.selectedResource.name
+        })
 
         if (!response.ok) {
-          throw new Error('Failed to fetch resource');
+          throw new Error('Failed to fetch resource')
         }
 
-        const result = await response.json();
-        this.resourceResult = result;
+        const result = await response.json()
+        this.resourceResult = result
       } catch (error) {
-        console.error('Error fetching resource:', error);
-        this.resourceResult = { error: error.message };
+        console.error('Error fetching resource:', error)
+        this.resourceResult = { error: error.message }
       } finally {
-        this.isExecuting = false;
+        this.isExecuting = false
       }
     },
     async fetchResourceFromTemplate() {
       try {
         if (!this.selectedServer || !this.selectedResourceTemplate) {
-          throw new Error('Please select a server and resource template first');
+          throw new Error('Please select a server and resource template first')
         }
 
-        this.isExecuting = true;
-        this.resourceTemplateResult = null;
+        this.isExecuting = true
+        this.resourceTemplateResult = null
 
-        // Generate the final URL by replacing parameters
-        let finalUrl = this.selectedResourceTemplate.uriTemplate;
+        let finalUrl = this.selectedResourceTemplate.uriTemplate
         for (const param of this.urlParameters) {
-          const value = this.resourceTemplateParams[param.name];
+          const value = this.resourceTemplateParams[param.name]
           if (!value && param.required) {
-            throw new Error(`Missing required parameter: ${param.name}`);
+            throw new Error(`Missing required parameter: ${param.name}`)
           }
-          finalUrl = finalUrl.replace(`{${param.name}}`, encodeURIComponent(value));
+          finalUrl = finalUrl.replace(`{${param.name}}`, encodeURIComponent(value))
         }
 
-        const response = await fetch(`${API_BASE_URL}/fetch_resource`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            server: this.selectedServer.name,
-            resource: finalUrl,
-          })
-        });
+        const response = await httpClient.post(`${API_BASE_URL}/fetch_resource`, {
+          server: this.selectedServer.name,
+          resource: finalUrl,
+        })
 
         if (!response.ok) {
-          throw new Error('Failed to fetch resource from template');
+          throw new Error('Failed to fetch resource from template')
         }
 
-        const result = await response.json();
-        this.resourceTemplateResult = result;
+        const result = await response.json()
+        this.resourceTemplateResult = result
       } catch (error) {
-        console.error('Error fetching resource from template:', error);
-        this.resourceTemplateResult = { error: error.message };
+        console.error('Error fetching resource from template:', error)
+        this.resourceTemplateResult = { error: error.message }
       } finally {
-        this.isExecuting = false;
+        this.isExecuting = false
       }
     },
     sendMessage() {
@@ -688,30 +647,24 @@ export default {
     },
     async listToolsOfTool() {
       try {
-        this.isExecuting = true;
-        this.listToolsResult = null;
+        this.isExecuting = true
+        this.listToolsResult = null
 
-        const response = await fetch(`${API_BASE_URL}/dev/list_tool_of_chat`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            content: this.toolInput
-          })
-        });
+        const response = await httpClient.post(`${API_BASE_URL}/dev/list_tool_of_chat`, {
+          content: this.toolInput
+        })
 
         if (!response.ok) {
-          throw new Error('Failed to list tools of tool');
+          throw new Error('Failed to list tools of tool')
         }
 
-        const result = await response.json();
-        this.listToolsResult = result;
+        const result = await response.json()
+        this.listToolsResult = result
       } catch (error) {
-        console.error('Error listing tools of tool:', error);
-        this.listToolsResult = { error: error.message };
+        console.error('Error listing tools of tool:', error)
+        this.listToolsResult = { error: error.message }
       } finally {
-        this.isExecuting = false;
+        this.isExecuting = false
       }
     }
   }

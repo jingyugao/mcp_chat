@@ -47,7 +47,7 @@ class InviteRequest(BaseModel):
 
 
 # Database setup
-MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+MONGODB_URL = os.getenv("MONGODB_URI", "mongodb://mongodb:27017/chat_db")
 client = AsyncIOMotorClient(MONGODB_URL)
 db = client.chat_db
 messages_collection = db.messages

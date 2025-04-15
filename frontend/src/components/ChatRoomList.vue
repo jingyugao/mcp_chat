@@ -37,6 +37,7 @@
 <script>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { httpClient } from '../utils/http-client'
 
 export default {
 	name: 'ChatRoomList',
@@ -48,11 +49,7 @@ export default {
 
 		const fetchRooms = async () => {
 			try {
-				const response = await fetch('http://localhost:14000/api/chat-rooms', {
-					headers: {
-						'Authorization': `Bearer ${localStorage.getItem('token')}`
-					}
-				})
+				const response = await httpClient.get('http://localhost:14000/api/chat-rooms')
 				if (response.ok) {
 					rooms.value = await response.json()
 				}
@@ -65,15 +62,8 @@ export default {
 			if (!newRoomName.value.trim()) return
 
 			try {
-				const response = await fetch('http://localhost:14000/api/chat-rooms', {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-						'Authorization': `Bearer ${localStorage.getItem('token')}`
-					},
-					body: JSON.stringify({
-						name: newRoomName.value.trim()
-					})
+				const response = await httpClient.post('http://localhost:14000/api/chat-rooms', {
+					name: newRoomName.value.trim()
 				})
 
 				if (response.ok) {

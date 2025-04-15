@@ -68,6 +68,7 @@
 <script>
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
+import { httpClient } from '../utils/http-client'
 
 export default {
 	name: 'ChatRoom',
@@ -137,17 +138,7 @@ export default {
 
 		const fetchRoomInfo = async () => {
 			try {
-				const token = localStorage.getItem('token')
-				if (!token) {
-					console.error('No token found')
-					return
-				}
-
-				const response = await fetch(`http://localhost:14000/api/chat-rooms/${route.params.roomId}`, {
-					headers: {
-						'Authorization': `Bearer ${token}`
-					}
-				})
+				const response = await httpClient.get(`http://localhost:14000/api/chat-rooms/${route.params.roomId}`)
 				if (response.ok) {
 					room.value = await response.json()
 				} else {
@@ -161,17 +152,7 @@ export default {
 		const fetchMessages = async () => {
 			isLoading.value = true
 			try {
-				const token = localStorage.getItem('token')
-				if (!token) {
-					console.error('No token found')
-					return
-				}
-
-				const response = await fetch(`http://localhost:14000/api/chat-rooms/${route.params.roomId}/messages`, {
-					headers: {
-						'Authorization': `Bearer ${token}`
-					}
-				})
+				const response = await httpClient.get(`http://localhost:14000/api/chat-rooms/${route.params.roomId}/messages`)
 				if (response.ok) {
 					messages.value = await response.json()
 					scrollToBottom()
@@ -190,21 +171,8 @@ export default {
 
 			isSending.value = true
 			try {
-				const token = localStorage.getItem('token')
-				if (!token) {
-					console.error('No token found')
-					return
-				}
-
-				const response = await fetch(`http://localhost:14000/api/chat-rooms/${route.params.roomId}/messages`, {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-						'Authorization': `Bearer ${token}`
-					},
-					body: JSON.stringify({
-						content: newMessage.value.trim()
-					})
+				const response = await httpClient.post(`http://localhost:14000/api/chat-rooms/${route.params.roomId}/messages`, {
+					content: newMessage.value.trim()
 				})
 
 				if (response.ok) {

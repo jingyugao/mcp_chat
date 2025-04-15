@@ -9,18 +9,20 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 RUN pip install uv fastapi uvicorn
 
+ENV PATH="/app/.venv/bin:$PATH"
+
 # 复制项目文件
 
 COPY .env ./
 
-COPY pyproject.toml ./
+COPY pyproject.toml uv.lock ./
 COPY backend ./backend
 
 # 使用uv安装Python依赖
-RUN uv sync --all-extras
+RUN uv sync --python 3.10 --frozen --all-extras
 
 # 设置环境变量
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app:$PYTHONPATH
 ENV PYTHONUNBUFFERED=1
 
 # 暴露端口
