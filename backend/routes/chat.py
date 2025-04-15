@@ -1,5 +1,3 @@
-
-
 import bson
 from fastapi import (
     APIRouter,
@@ -16,8 +14,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import asyncio
 from sse_starlette.sse import EventSourceResponse
-
-from backend.models import ChatRoom, User
+from backend.models import ChatRoom, User, Message, ChatRoom
 from backend.database import (
     save_message,
     get_room_messages,
@@ -28,25 +25,6 @@ from backend.database import (
     get_user_by_username,
     get_chat_rooms,
 )
-
-PyObjectId = Annotated[str, BeforeValidator(str)]
-
-# Models
-class Message(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id",serialization_alias="id", default=None)
-    content: str
-    room_id: str
-    sender_id: str
-    sender_username: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-
-
-
-class ChatRoom(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id",serialization_alias="id", default=None)
-    name: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    participants: list[str] = Field(default_factory=list)
 
 
 class InviteRequest(BaseModel):
@@ -78,7 +56,7 @@ async def save_message(
 
 
 async def get_chat_room(room_id: str):
-    ret= await chat_rooms_collection.find_one({"_id": bson.ObjectId(room_id)})
+    ret = await chat_rooms_collection.find_one({"_id": bson.ObjectId(room_id)})
 
     return ret
 
@@ -115,8 +93,9 @@ router = APIRouter()
 
 @router.get("/chat-rooms/list", response_model=List[ChatRoom])
 async def get_rooms(current_user: dict = Depends(get_current_user)):
-    ret= await get_chat_rooms(str(current_user["_id"]))
+    ret = await get_chat_rooms(str(current_user["_id"]))
     return ret
+
 
 @router.post("/chat-rooms", response_model=ChatRoom)
 async def create_room(params: dict, current_user: dict = Depends(get_current_user)):
@@ -131,7 +110,7 @@ async def get_room_info(room_id: str, current_user: dict = Depends(get_current_u
     return room
 
 
-@router.get("/chat-rooms/{room_id}/messages",response_model=List[Message])
+@router.get("/chat-rooms/{room_id}/messages", response_model=List[Message])
 async def get_messages(room_id: str, current_user: dict = Depends(get_current_user)):
 
     messages = await get_room_messages(room_id)
@@ -194,6 +173,7 @@ async def sse_endpoint(
 @router.get("/user/search")
 async def search_user(username: str, current_user: dict = Depends(get_current_user)):
     return await search_user(username, str(current_user["_id"]))
+
 
 @router.post("/chat-rooms/{room_id}/invite")
 async def invite_user(
