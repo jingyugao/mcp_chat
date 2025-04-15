@@ -29,23 +29,21 @@ from backend.database import (
     get_chat_rooms,
 )
 
+PyObjectId = Annotated[str, BeforeValidator(str)]
 
 # Models
 class Message(BaseModel):
-    id: str
+    id: Optional[PyObjectId] = Field(alias="_id",serialization_alias="id", default=None)
     content: str
+    room_id: str
     sender_id: str
     sender_username: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 
-PyObjectId = Annotated[str, BeforeValidator(str)]
-
-
-
 class ChatRoom(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    id: Optional[PyObjectId] = Field(alias="_id",serialization_alias="id", default=None)
     name: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
     participants: list[str] = Field(default_factory=list)
@@ -79,23 +77,9 @@ async def save_message(
     return message
 
 
-async def get_room_messages(room_id: str, limit: int = 50):
-    cursor = messages_collection.find({"room_id": room_id})
-    cursor.sort("created_at", -1).limit(limit)
-    messages = await cursor.to_list(length=limit)
-    return messages
-
-
-async def create_chat_room(name: str, creator_id: str):
-    room = {"name": name, "created_at": datetime.utcnow(), "participants": [creator_id]}
-    result = await chat_rooms_collection.insert_one(room)
-    room["id"] = str(result.inserted_id)
-    return room
-
-
 async def get_chat_room(room_id: str):
     ret= await chat_rooms_collection.find_one({"_id": bson.ObjectId(room_id)})
-    print("ret:",ret)
+
     return ret
 
 
@@ -132,9 +116,7 @@ router = APIRouter()
 @router.get("/chat-rooms/list", response_model=List[ChatRoom])
 async def get_rooms(current_user: dict = Depends(get_current_user)):
     ret= await get_chat_rooms(str(current_user["_id"]))
-    print("ret:",ret)
     return ret
-
 
 @router.post("/chat-rooms", response_model=ChatRoom)
 async def create_room(params: dict, current_user: dict = Depends(get_current_user)):
@@ -149,9 +131,11 @@ async def get_room_info(room_id: str, current_user: dict = Depends(get_current_u
     return room
 
 
-@router.get("/chat-rooms/{room_id}/messages")
+@router.get("/chat-rooms/{room_id}/messages",response_model=List[Message])
 async def get_messages(room_id: str, current_user: dict = Depends(get_current_user)):
+
     messages = await get_room_messages(room_id)
+
     return messages
 
 

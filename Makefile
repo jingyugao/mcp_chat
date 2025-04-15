@@ -37,7 +37,7 @@ restart:
 	docker compose down
 	docker compose up -d
 
-restart_rebuild:
+re_all:
 	make rebuild
 	make restart
 

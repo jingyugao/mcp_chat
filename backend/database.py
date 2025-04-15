@@ -6,8 +6,9 @@ from datetime import datetime, timedelta
 from typing import Optional
 import jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends, HTTPException, status, Request
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordBearer
+from fastapi.security.utils import get_authorization_scheme_param
 from .models import User, UserCreate, TokenData
 import asyncio
 
@@ -19,7 +20,6 @@ db = client.chat_db
 # JWT配置
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 
 
@@ -34,6 +34,7 @@ tokens_collection = db.tokens  # New collection for tokens
 
 # 创建 Bearer token 验证器
 security = HTTPBearer()
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 async def get_user_by_username(username: str):
     return await users_collection.find_one({"username": username})
@@ -93,9 +94,33 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     asyncio.create_task(save_token(data["sub"], encoded_jwt, expire))
     return encoded_jwt
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def get_token_from_request(request: Request) -> Optional[str]:
+    # First try to get token from query parameters
+    token = request.query_params.get("token")
+    if token:
+        return token
+    
+    # Then try to get token from header
+    authorization = request.headers.get("Authorization")
+    if not authorization:
+        return None
+        
+    scheme, token = get_authorization_scheme_param(authorization)
+    if scheme.lower() != "bearer":
+        return None
+        
+    return token
+
+async def get_current_user(request: Request):
+    token = await get_token_from_request(request)
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     try:
-        token = credentials.credentials
         # Check if token exists in MongoDB
         token_data = await get_token(token)
         if not token_data:
@@ -114,7 +139,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
                 headers={"WWW-Authenticate": "Bearer"},
             )
         token_data = TokenData(username=username)
-    except HTTPException:
+    except (jwt.JWTError, HTTPException):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
@@ -143,6 +168,9 @@ async def save_message(content: str, sender_id: str, sender_username: str, room_
     return message
 
 async def get_room_messages(room_id: str, limit: int = 50):
+    print("room_id:",room_id)
+    
+    
     cursor = messages_collection.find({"room_id": room_id})
     cursor.sort("created_at", -1).limit(limit)
     messages = await cursor.to_list(length=limit)

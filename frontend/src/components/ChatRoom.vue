@@ -94,9 +94,15 @@ export default {
 		const inviteError = ref('')
 
 		const connectSSE = () => {
-			
+			const token = localStorage.getItem('access_token')
+			if (!token) {
+				console.error('No authentication token found')
+				return
+			}
 
-			eventSource.value = new EventSource(`${API_BASE_URL}/api/chat-rooms/${route.params.roomId}/events`)
+			eventSource.value = new EventSource(
+				`${API_BASE_URL}/api/chat-rooms/${route.params.roomId}/events?token=${token}`,
+			)
 
 			eventSource.value.onopen = () => {
 				isConnected.value = true
