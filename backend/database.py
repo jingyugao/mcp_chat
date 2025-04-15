@@ -1,4 +1,6 @@
 import os
+from bson import ObjectId
+import bson
 from motor.motor_asyncio import AsyncIOMotorClient
 from datetime import datetime, timedelta
 from typing import Optional
@@ -10,7 +12,7 @@ from .models import User, UserCreate, TokenData
 import asyncio
 
 # MongoDB连接
-MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+MONGODB_URI = os.getenv("MONGODB_URI")
 client = AsyncIOMotorClient(MONGODB_URI)
 db = client.chat_db
 
@@ -84,7 +86,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        expire = datetime.utcnow() + timedelta(days=3)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     # Store token in MongoDB
@@ -158,10 +160,20 @@ async def create_chat_room(name: str, creator_id: str):
     return room
 
 async def get_chat_room(room_id: str):
-    return await chat_rooms_collection.find_one({"_id": room_id})
+    return await chat_rooms_collection.find_one({"_id": ObjectId(room_id)})
 
 async def add_participant_to_room(room_id: str, user_id: str):
     await chat_rooms_collection.update_one(
         {"_id": room_id},
         {"$addToSet": {"participants": user_id}}
     ) 
+    
+    
+async def get_chat_rooms(user_id: str):
+    return await chat_rooms_collection.find({"participants": user_id}).to_list(length=100)
+
+async def get_chat_room_by_id(room_id: str):
+    return await chat_rooms_collection.find_one({"_id": ObjectId(room_id)})
+
+async def search_user(username: str, user_id: str):
+    return await users_collection.find({"username": f'/{username}/', "_id": {"$ne": user_id}}).to_list(length=100)

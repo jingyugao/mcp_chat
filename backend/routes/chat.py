@@ -1,3 +1,6 @@
+
+
+import bson
 from fastapi import (
     APIRouter,
     Depends,
@@ -5,10 +8,10 @@ from fastapi import (
     HTTPException,
     Request,
 )
-from typing import Dict, Set, List
+from typing import Annotated, Dict, Optional, Set, List
 import json
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, BeforeValidator, Field
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import asyncio
@@ -23,20 +26,26 @@ from backend.database import (
     add_participant_to_room,
     get_current_user,
     get_user_by_username,
+    get_chat_rooms,
 )
 
 
 # Models
 class Message(BaseModel):
-    id: str = Field(default_factory=str)
+    id: str
     content: str
     sender_id: str
     sender_username: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+
+PyObjectId = Annotated[str, BeforeValidator(str)]
+
+
+
 class ChatRoom(BaseModel):
-    id: str = Field(default_factory=str)
+    id: Optional[PyObjectId] = Field(alias="_id", default=None)
     name: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
     participants: list[str] = Field(default_factory=list)
@@ -47,7 +56,7 @@ class InviteRequest(BaseModel):
 
 
 # Database setup
-MONGODB_URL = os.getenv("MONGODB_URI", "mongodb://mongodb:27017/chat_db")
+MONGODB_URL = os.getenv("MONGODB_URI")
 client = AsyncIOMotorClient(MONGODB_URL)
 db = client.chat_db
 messages_collection = db.messages
@@ -85,7 +94,9 @@ async def create_chat_room(name: str, creator_id: str):
 
 
 async def get_chat_room(room_id: str):
-    return await chat_rooms_collection.find_one({"_id": room_id})
+    ret= await chat_rooms_collection.find_one({"_id": bson.ObjectId(room_id)})
+    print("ret:",ret)
+    return ret
 
 
 # SSE connection manager
@@ -118,9 +129,24 @@ manager = SSEManager()
 router = APIRouter()
 
 
+@router.get("/chat-rooms/list", response_model=List[ChatRoom])
+async def get_rooms(current_user: dict = Depends(get_current_user)):
+    ret= await get_chat_rooms(str(current_user["_id"]))
+    print("ret:",ret)
+    return ret
+
+
 @router.post("/chat-rooms", response_model=ChatRoom)
-async def create_room(name: str, current_user: dict = Depends(get_current_user)):
-    return await create_chat_room(name, str(current_user["_id"]))
+async def create_room(params: dict, current_user: dict = Depends(get_current_user)):
+    return await create_chat_room(params["name"], str(current_user["_id"]))
+
+
+@router.get("/chat-rooms/room-info/{room_id}", response_model=ChatRoom)
+async def get_room_info(room_id: str, current_user: dict = Depends(get_current_user)):
+    room = await get_chat_room(room_id)
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    return room
 
 
 @router.get("/chat-rooms/{room_id}/messages")
@@ -180,6 +206,10 @@ async def sse_endpoint(
 
     return EventSourceResponse(event_generator())
 
+
+@router.get("/user/search")
+async def search_user(username: str, current_user: dict = Depends(get_current_user)):
+    return await search_user(username, str(current_user["_id"]))
 
 @router.post("/chat-rooms/{room_id}/invite")
 async def invite_user(

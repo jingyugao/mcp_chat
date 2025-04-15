@@ -11,6 +11,7 @@ dependencies = [
     "langchain>=0.3.23",
     "langchain-core>=0.3.51",
     "mcp>=1.6.0",
+    "mongoengine>=0.29.1",
     "motor>=3.7.0",
     "openai>=1.72.0",
     "passlib>=1.7.4",

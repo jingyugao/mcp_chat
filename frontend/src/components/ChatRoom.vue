@@ -94,13 +94,9 @@ export default {
 		const inviteError = ref('')
 
 		const connectSSE = () => {
-			const token = localStorage.getItem('token')
-			if (!token) {
-				console.error('No token found')
-				return
-			}
+			
 
-			eventSource.value = new EventSource(`${API_BASE_URL}/api/chat-rooms/${route.params.roomId}/events?token=${token}`)
+			eventSource.value = new EventSource(`${API_BASE_URL}/api/chat-rooms/${route.params.roomId}/events`)
 
 			eventSource.value.onopen = () => {
 				isConnected.value = true
@@ -139,7 +135,8 @@ export default {
 
 		const fetchRoomInfo = async () => {
 			try {
-				const response = await httpClient.get(`${API_BASE_URL}/api/chat-rooms/${route.params.roomId}`)
+				
+				const response = await httpClient.get(`${API_BASE_URL}/api/chat-rooms/room-info/${route.params.roomId}`)
 				if (response.ok) {
 					room.value = await response.json()
 				} else {

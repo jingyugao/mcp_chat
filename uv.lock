@@ -710,6 +710,7 @@ dependencies = [
     { name = "langchain" },
     { name = "langchain-core" },
     { name = "mcp" },
+    { name = "mongoengine" },
     { name = "motor" },
     { name = "openai" },
     { name = "passlib" },
@@ -725,11 +726,24 @@ requires-dist = [
     { name = "langchain", specifier = ">=0.3.23" },
     { name = "langchain-core", specifier = ">=0.3.51" },
     { name = "mcp", specifier = ">=1.6.0" },
+    { name = "mongoengine", specifier = ">=0.29.1" },
     { name = "motor", specifier = ">=3.7.0" },
     { name = "openai", specifier = ">=1.72.0" },
     { name = "passlib", specifier = ">=1.7.4" },
     { name = "pyjwt", specifier = ">=2.10.1" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
+]
+
+[[package]]
+name = "mongoengine"
+version = "0.29.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pymongo" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/32/0b/f0bd3da47c77b2d48103b42b9a38a70de9c41c979dd681a9a6aff43bf2eb/mongoengine-0.29.1.tar.gz", hash = "sha256:3b43abaf2d5f0b7d39efc2b7d9e78f4d4a5dc7ce92b9889ba81a5a9b8dee3cf3", size = 168735 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/97/52/a0788a31f8ec2cfb508e1fb29c321d5082f0aa58bc88ba118c898e72f612/mongoengine-0.29.1-py3-none-any.whl", hash = "sha256:9302ec407dd60f47f62cc07684d9f6cac87f1e93283c54203851788104d33df4", size = 112377 },
 ]
 
 [[package]]

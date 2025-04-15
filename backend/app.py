@@ -332,9 +332,6 @@ async def list_tool_of_chat(request: Dict[str, str]):
     }
 
 
-# OAuth2
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
 
 # Background task to clean up expired tokens
 async def cleanup_tokens_task():

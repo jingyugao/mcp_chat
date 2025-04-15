@@ -8,6 +8,7 @@ from backend.database import (
     verify_password,
     create_access_token,
     get_current_user,
+    delete_token,
     security
 )
 from backend.models import UserCreate, Token, User, UserLogin
