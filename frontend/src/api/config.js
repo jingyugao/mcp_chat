@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:14000'
+const API_BASE_URL = process.env.VITE_API_URL || 'http://localhost:14000'
 
 export const API_URLS = {
   auth: {
