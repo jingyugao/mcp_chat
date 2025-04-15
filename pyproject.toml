@@ -1,5 +1,5 @@
 [project]
-name = "mcp-debug"
+name = "mcp-chat"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -11,10 +11,11 @@ dependencies = [
     "langchain>=0.3.23",
     "langchain-core>=0.3.51",
     "mcp>=1.6.0",
+    "mongoengine>=0.29.1",
+    "motor>=3.7.0",
     "openai>=1.72.0",
+    "passlib>=1.7.4",
+    "pyjwt>=2.10.1",
     "python-dotenv>=1.1.0",
 ]
 
-[[tool.uv.index]]
-url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
-default = true

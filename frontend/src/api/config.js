@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://localhost:14000'
+const API_BASE_URL = process.env.VITE_API_URL || 'http://localhost:14000'
 
 export const API_URLS = {
   auth: {
@@ -9,4 +9,5 @@ export const API_URLS = {
   }
 }
 
-export default API_URLS 
+export default API_URLS
+export { API_BASE_URL }

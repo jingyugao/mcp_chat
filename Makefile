@@ -16,17 +16,28 @@ logs-all:
 shell-backend:
 	docker compose exec backend /bin/bash
 
+shell-frontend:
+	docker compose exec frontend /bin/bash
+
+
 # 重新构建所有服务
 rebuild:
 	docker compose build
 
+refe:
+	docker compose build frontend
+	docker compose up -d frontend
+
+rebe:
+	docker compose build backend
+	docker compose up -d backend
 
 # 重启所有服务
 restart:
 	docker compose down
 	docker compose up -d
 
-restart_rebuild:
+re_all:
 	make rebuild
 	make restart
 
