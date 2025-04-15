@@ -266,8 +266,7 @@
 
 <script>
 import { httpClient } from '../utils/http-client'
-
-const API_BASE_URL = 'http://localhost:14000/api'
+import { API_BASE_URL } from '../api/config'
 
 export default {
   name: 'ServerManager',

@@ -16,6 +16,10 @@ logs-all:
 shell-backend:
 	docker compose exec backend /bin/bash
 
+shell-frontend:
+	docker compose exec frontend /bin/bash
+
+
 # 重新构建所有服务
 rebuild:
 	docker compose build

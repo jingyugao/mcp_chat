@@ -38,6 +38,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { httpClient } from '../utils/http-client'
+import { API_BASE_URL } from '../api/config'
 
 export default {
 	name: 'ChatRoomList',
@@ -49,7 +50,7 @@ export default {
 
 		const fetchRooms = async () => {
 			try {
-				const response = await httpClient.get('http://localhost:14000/api/chat-rooms')
+				const response = await httpClient.get(`${API_BASE_URL}/api/chat-rooms`)
 				if (response.ok) {
 					rooms.value = await response.json()
 				}
@@ -62,7 +63,7 @@ export default {
 			if (!newRoomName.value.trim()) return
 
 			try {
-				const response = await httpClient.post('http://localhost:14000/api/chat-rooms', {
+				const response = await httpClient.post(`${API_BASE_URL}/api/chat-rooms`, {
 					name: newRoomName.value.trim()
 				})
 

@@ -69,6 +69,7 @@
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { httpClient } from '../utils/http-client'
+import { API_BASE_URL } from '../api/config'
 
 export default {
 	name: 'ChatRoom',
@@ -99,7 +100,7 @@ export default {
 				return
 			}
 
-			eventSource.value = new EventSource(`http://localhost:14000/api/chat-rooms/${route.params.roomId}/events?token=${token}`)
+			eventSource.value = new EventSource(`${API_BASE_URL}/api/chat-rooms/${route.params.roomId}/events?token=${token}`)
 
 			eventSource.value.onopen = () => {
 				isConnected.value = true
@@ -138,7 +139,7 @@ export default {
 
 		const fetchRoomInfo = async () => {
 			try {
-				const response = await httpClient.get(`http://localhost:14000/api/chat-rooms/${route.params.roomId}`)
+				const response = await httpClient.get(`${API_BASE_URL}/api/chat-rooms/${route.params.roomId}`)
 				if (response.ok) {
 					room.value = await response.json()
 				} else {
@@ -152,7 +153,7 @@ export default {
 		const fetchMessages = async () => {
 			isLoading.value = true
 			try {
-				const response = await httpClient.get(`http://localhost:14000/api/chat-rooms/${route.params.roomId}/messages`)
+				const response = await httpClient.get(`${API_BASE_URL}/api/chat-rooms/${route.params.roomId}/messages`)
 				if (response.ok) {
 					messages.value = await response.json()
 					scrollToBottom()
@@ -171,7 +172,7 @@ export default {
 
 			isSending.value = true
 			try {
-				const response = await httpClient.post(`http://localhost:14000/api/chat-rooms/${route.params.roomId}/messages`, {
+				const response = await httpClient.post(`${API_BASE_URL}/api/chat-rooms/${route.params.roomId}/messages`, {
 					content: newMessage.value.trim()
 				})
 
@@ -205,20 +206,8 @@ export default {
 			inviteError.value = ''
 
 			try {
-				const token = localStorage.getItem('token')
-				if (!token) {
-					throw new Error('No token found')
-				}
-
-				const response = await fetch(`http://localhost:14000/api/chat-rooms/${route.params.roomId}/invite`, {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-						'Authorization': `Bearer ${token}`
-					},
-					body: JSON.stringify({
-						username: inviteUsername.value.trim()
-					})
+				const response = await httpClient.post(`${API_BASE_URL}/api/chat-rooms/${route.params.roomId}/invite`, {
+					username: inviteUsername.value.trim()
 				})
 
 				if (response.ok) {
