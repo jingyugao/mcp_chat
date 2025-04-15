@@ -2,11 +2,11 @@ import os
 from motor.motor_asyncio import AsyncIOMotorClient
 from datetime import datetime, timedelta
 from typing import Optional
-from jose import JWTError, jwt
+import python_jwt as jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from .models import User, UserCreate, TokenData
+from models import User, UserCreate, TokenData
 import asyncio
 
 # MongoDB连接

@@ -1,18 +1,16 @@
 from datetime import timedelta
 from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.security import OAuth2PasswordRequestForm, HTTPAuthorizationCredentials
-from ..database import (
+from backend.database import (
     get_user_by_username,
     get_user_by_email,
     create_user,
     verify_password,
     create_access_token,
     get_current_user,
-    delete_token,
-    ACCESS_TOKEN_EXPIRE_MINUTES,
     security
 )
-from ..models import UserCreate, Token, User, UserLogin
+from backend.models import UserCreate, Token, User, UserLogin
 
 router = APIRouter()
 
@@ -50,7 +48,7 @@ async def login(user_data: UserLogin):
         )
         
     # Create access token
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = timedelta(days=3)
     access_token = create_access_token(
         data={"sub": user["username"]},
         expires_delta=access_token_expires
