@@ -13,7 +13,7 @@ from fastapi.security import (
     OAuth2PasswordBearer,
 )
 from fastapi.security.utils import get_authorization_scheme_param
-from backend.models import User, UserCreate, TokenData
+from backend.models import ChatRoom, User, UserCreate, TokenData
 import asyncio
 
 # MongoDB连接
@@ -192,7 +192,13 @@ async def get_room_messages(room_id: str, limit: int = 50):
 
 # 聊天室相关函数
 async def create_chat_room(name: str, creator_id: str):
-    room = {"name": name, "created_at": datetime.utcnow(), "participants": [creator_id]}
+    room = {
+        "name": name,
+        "creator_id": creator_id,
+        "participants": [creator_id],
+        "created_at": datetime.utcnow(),
+        "is_public": True,
+    }
     result = await chat_rooms_collection.insert_one(room)
     room["id"] = str(result.inserted_id)
     return room

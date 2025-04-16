@@ -91,7 +91,7 @@ manager = SSEManager()
 router = APIRouter()
 
 
-@router.get("/chat-rooms/list", response_model=List[ChatRoom])
+@router.get("/chat-rooms", response_model=List[ChatRoom])
 async def get_rooms(current_user: dict = Depends(get_current_user)):
     ret = await get_chat_rooms(str(current_user["_id"]))
     return ret
