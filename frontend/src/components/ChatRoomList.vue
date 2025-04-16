@@ -63,7 +63,7 @@ export default {
 			if (!newRoomName.value.trim()) return
 
 			try {
-				const response = await httpClient.post(`${API_URLS.chat.rooms}`, {
+				const response = await httpClient.post(`${API_URLS.chat.createRoom}`, {
 					name: newRoomName.value.trim()
 				})
 

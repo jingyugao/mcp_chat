@@ -9,6 +9,7 @@ export const API_URLS = {
   },
   chat: {
     rooms: `${API_BASE_URL}/api/chat_room/room_list`,
+    createRoom:`${API_BASE_URL}/api/chat_room/create_room`,
     roomInfo: (roomId) => `${API_BASE_URL}/api/chat_room/room_info/${roomId}`,
     messages: (roomId) => `${API_BASE_URL}/api/chat_room/room_messages/${roomId}`,
     events: (roomId) => `${API_BASE_URL}/api/chat_room/room_events/${roomId}`,
