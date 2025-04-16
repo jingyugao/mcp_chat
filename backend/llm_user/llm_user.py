@@ -1,14 +1,17 @@
 import asyncio
 import json
+import threading
 import typing
 from typing import Callable, Dict, List, Optional
 
 from mcp import Tool
 from pydantic import BaseModel
+from backend.chat_room import room_chat
+from backend.db.user import create_user, get_user_by_username
+from backend.model.model import User, UserRole
 from backend.models import Message as BaseMessage
 
 from mcp.server.fastmcp import FastMCP
-
 
 
 class ToolCall(BaseModel):
@@ -120,7 +123,7 @@ def get_tool_description(tool: Tool):
             parameters=Parameters(
                 type="object",
                 properties={
-                    k: ParameterProperty(type=v["type"],description=v['title'])
+                    k: ParameterProperty(type=v["type"], description=v["title"])
                     for k, v in tool.inputSchema["properties"].items()
                 },
                 required=list(tool.inputSchema["required"]),
@@ -133,7 +136,9 @@ sys_mcp = FastMCP()
 
 
 @sys_mcp.tool()
-def summary(content: typing.Annotated[str, "the content to be summarized"]) -> typing.Annotated[str, "the summarized content"]:
+def summary(
+    content: typing.Annotated[str, "the content to be summarized"],
+) -> typing.Annotated[str, "the summarized content"]:
     """
     summary the content
 
@@ -141,11 +146,29 @@ def summary(content: typing.Annotated[str, "the content to be summarized"]) -> t
     return content
 
 
-async def main() -> None:
-    tools = await sys_mcp.list_tools()
-    print(tools)
-    print(json.dumps([get_tool_description(tool).model_dump() for tool in tools]))
+async def llm_user_chat() -> None:
+
+    user = await get_user_by_username("llm_user")
+    if user is None:
+        user = await create_user(
+            User(
+                username="llm_user",
+                password="llm_user",
+                email="llm_user@gmail.com",
+                role=UserRole.LLM,
+            )
+        )
+
+    if user is None:
+        raise Exception("Failed to create llm user")
+    while True:
+        message = await room_chat.chat_room_manager.global_message_queue.get()
+        print(message)
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+def wrap_async_func():
+    asyncio.run(llm_user_chat())
+
+
+def init_llm_user():
+    asyncio.create_task(llm_user_chat())

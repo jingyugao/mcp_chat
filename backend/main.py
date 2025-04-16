@@ -1,5 +1,5 @@
-
 import os
+import threading
 from fastapi import (
     FastAPI,
     HTTPException,
@@ -12,12 +12,12 @@ import logging
 import traceback
 
 
-
 from openai import OpenAI
 
 from dotenv import load_dotenv
 
-from backend.routes import auth, chat,mcp
+from backend.llm_user.llm_user import init_llm_user
+from backend.routes import auth, chat, mcp
 
 load_dotenv()
 
@@ -73,6 +73,13 @@ app.include_router(chat.router, prefix="/api/chat_room", tags=["chat"])
 
 
 app.include_router(mcp.router, prefix="/api/mcp", tags=["mcp"])
+
+
+@app.on_event("startup")
+async def startup_event():
+    print("startup_event")
+    init_llm_user()
+
 
 if __name__ == "__main__":
 

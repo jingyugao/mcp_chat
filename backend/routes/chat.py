@@ -17,8 +17,6 @@ from backend.db.chat_room import (
 )
 
 
-
-
 from typing import List
 import json
 from datetime import datetime
@@ -27,6 +25,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 from sse_starlette.sse import EventSourceResponse
 from backend.model.model import ChatRoom, Message
+
 
 class InviteRequest(BaseModel):
     username: str
@@ -93,14 +92,13 @@ async def get_messages(room_id: str, current_user: dict = Depends(get_current_us
     return messages
 
 
-@router.post("/send_message/{room_id}")
+@router.post("/room_messages/{room_id}")
 async def send_message(
     room_id: str, message: dict, current_user: dict = Depends(get_current_user)
 ):
-    await room_chat.send_message(message["content"], 
-                                                   str(current_user["_id"]),
-                                                   current_user["username"], 
-                                                   room_id)
+    await room_chat.send_message(
+        message["content"], str(current_user["_id"]), current_user["username"], room_id
+    )
     return {"status": "success"}
 
 
@@ -127,7 +125,6 @@ async def sse_endpoint(
             )
 
     return EventSourceResponse(event_generator())
-
 
 
 @router.get("/user/search")

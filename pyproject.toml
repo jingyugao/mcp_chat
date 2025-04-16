@@ -17,5 +17,10 @@ dependencies = [
     "passlib>=1.7.4",
     "pyjwt>=2.10.1",
     "python-dotenv>=1.1.0",
+    "trio>=0.29.0",
 ]
+
+[[tool.uv.index]]
+url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
+default = true
 
