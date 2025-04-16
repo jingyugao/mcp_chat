@@ -266,7 +266,7 @@
 
 <script>
 import { httpClient } from '../utils/http-client'
-import { API_BASE_URL } from '../api/config'
+import { API_URLS } from '../api/config'
 
 export default {
   name: 'ServerManager',
@@ -326,7 +326,7 @@ export default {
     },
     async fetchServers() {
       try {
-        const response = await httpClient.get(`${API_BASE_URL}/servers`)
+        const response = await httpClient.get(API_URLS.mcp.servers)
         if (!response.ok) throw new Error('Failed to fetch servers')
         this.servers = await response.json()
       } catch (error) {
@@ -339,7 +339,7 @@ export default {
       }
 
       try {
-        const response = await httpClient.post(`${API_BASE_URL}/add_server`, {
+        const response = await httpClient.post(API_URLS.mcp.addServer, {
           url: this.newServer.url,
           name: this.newServer.name
         })
@@ -361,7 +361,7 @@ export default {
     },
     async removeServer(server) {
       try {
-        const response = await httpClient.delete(`${API_BASE_URL}/remove_server?name=${encodeURIComponent(server.name)}`)
+        const response = await httpClient.delete(`${API_URLS.mcp.removeServer}?name=${encodeURIComponent(server.name)}`)
 
         if (!response.ok) {
           throw new Error('Failed to remove server')
@@ -388,7 +388,7 @@ export default {
         server.status = isDisconnecting ? 'disconnecting' : 'connecting'
 
         if (isDisconnecting) {
-          const response = await httpClient.post(`${API_BASE_URL}/disconnect_server?name=${server.name}`)
+          const response = await httpClient.post(`${API_URLS.mcp.disconnectServer}?name=${server.name}`)
 
           if (!response.ok) {
             throw new Error('Failed to disconnect from server')
@@ -405,7 +405,7 @@ export default {
             throw new Error(result.message || 'Failed to disconnect from server')
           }
         } else {
-          const response = await httpClient.post(`${API_BASE_URL}/connect_server?name=${server.name}`)
+          const response = await httpClient.post(`${API_URLS.mcp.connectServer}?name=${server.name}`)
 
           if (!response.ok) {
             throw new Error('Failed to connect to server')
@@ -514,7 +514,7 @@ export default {
         this.isExecuting = true
         this.toolResult = null
 
-        const response = await httpClient.post(`${API_BASE_URL}/execute_tool`, {
+        const response = await httpClient.post(API_URLS.mcp.executeTool, {
           server: this.selectedServer.name,
           tool: this.selectedTool.name,
           parameters: this.toolParams
@@ -542,7 +542,7 @@ export default {
         this.isExecuting = true
         this.promptResult = null
 
-        const response = await httpClient.post(`${API_BASE_URL}/get_prompt`, {
+        const response = await httpClient.post(API_URLS.mcp.getPrompt, {
           server: this.selectedServer.name,
           prompt: this.selectedPrompt.name,
           parameters: this.promptParams
@@ -570,7 +570,7 @@ export default {
         this.isExecuting = true
         this.resourceResult = null
 
-        const response = await httpClient.post(`${API_BASE_URL}/fetch_resource`, {
+        const response = await httpClient.post(API_URLS.mcp.fetchResource, {
           server: this.selectedServer.name,
           resource: this.selectedResource.name
         })
@@ -606,7 +606,7 @@ export default {
           finalUrl = finalUrl.replace(`{${param.name}}`, encodeURIComponent(value))
         }
 
-        const response = await httpClient.post(`${API_BASE_URL}/fetch_resource`, {
+        const response = await httpClient.post(API_URLS.mcp.fetchResource, {
           server: this.selectedServer.name,
           resource: finalUrl,
         })
@@ -649,7 +649,7 @@ export default {
         this.isExecuting = true
         this.listToolsResult = null
 
-        const response = await httpClient.post(`${API_BASE_URL}/dev/list_tool_of_chat`, {
+        const response = await httpClient.post(API_URLS.mcp.listToolOfChat, {
           content: this.toolInput
         })
 

@@ -1,8 +1,10 @@
+
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field
 
 from backend.model.base import MongoBaseModel
+
 
 
 class Message(MongoBaseModel):
@@ -18,7 +20,6 @@ class ChatRoom(MongoBaseModel):
     participants: list[str] = Field(default_factory=list)
     is_public: bool = True
 
-
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -26,3 +27,13 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: Optional[str] = None
+
+
+class User(MongoBaseModel):
+    username: str
+    email: str
+    password: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    last_login: Optional[datetime] = None
+
+
