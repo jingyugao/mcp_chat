@@ -6,6 +6,9 @@ from fastapi import (
     HTTPException,
     Request,
 )
+from backend.chat_room.room_chat import chat_room_manager as room_chat
+
+
 from typing import Annotated, Dict, Optional, Set, List
 import json
 from datetime import datetime
@@ -61,32 +64,6 @@ async def get_chat_room(room_id: str):
     return ret
 
 
-# SSE connection manager
-class SSEManager:
-    def __init__(self):
-        self.active_connections: Dict[str, Set[asyncio.Queue]] = {}
-
-    async def connect(self, room_id: str):
-        if room_id not in self.active_connections:
-            self.active_connections[room_id] = set()
-        queue = asyncio.Queue()
-        self.active_connections[room_id].add(queue)
-        return queue
-
-    def disconnect(self, queue: asyncio.Queue, room_id: str):
-        if room_id in self.active_connections:
-            self.active_connections[room_id].remove(queue)
-            if not self.active_connections[room_id]:
-                del self.active_connections[room_id]
-
-    async def broadcast(self, message: dict, room_id: str):
-        if room_id in self.active_connections:
-            for queue in self.active_connections[room_id]:
-                await queue.put(message)
-
-
-manager = SSEManager()
-
 # Routes
 router = APIRouter()
 
@@ -122,26 +99,10 @@ async def get_messages(room_id: str, current_user: dict = Depends(get_current_us
 async def send_message(
     room_id: str, message: dict, current_user: dict = Depends(get_current_user)
 ):
-    saved_message = await save_message(
-        content=message["content"],
-        sender_id=str(current_user["_id"]),
-        sender_username=current_user["username"],
-        room_id=room_id,
-    )
-
-    await manager.broadcast(
-        {
-            "type": "message",
-            "data": {
-                "id": str(saved_message["_id"]),
-                "content": saved_message["content"],
-                "sender_id": saved_message["sender_id"],
-                "sender_username": saved_message["sender_username"],
-                "created_at": saved_message["created_at"].isoformat(),
-            },
-        },
-        room_id,
-    )
+    await room_chat.send_message(message["content"], 
+                                                   str(current_user["_id"]),
+                                                   current_user["username"], 
+                                                   room_id)
     return {"status": "success"}
 
 
@@ -150,7 +111,7 @@ async def sse_endpoint(
     request: Request, room_id: str, current_user: dict = Depends(get_current_user)
 ):
     async def event_generator():
-        queue = await manager.connect(room_id)
+        queue = await room_chat.enter_room(current_user["_id"], room_id)
         try:
             while True:
                 if await request.is_disconnected():
@@ -158,8 +119,8 @@ async def sse_endpoint(
                 message = await queue.get()
                 yield {"event": "message", "data": json.dumps(message)}
         finally:
-            manager.disconnect(queue, room_id)
-            await manager.broadcast(
+            room_chat.disconnect(current_user["_id"], room_id)
+            await room_chat.broadcast(
                 {
                     "type": "system",
                     "data": f"User {current_user['username']} left the chat",
@@ -205,26 +166,11 @@ async def invite_user(
     await add_participant_to_room(room_id, str(user_to_invite["_id"]))
 
     # Create system message
-    system_message = await save_message(
+    room_chat.send_message(
         content=f"User {user_to_invite['username']} has been invited to the room by {current_user['username']}",
         sender_id="system",
         sender_username="system",
         room_id=room_id,
-    )
-
-    # Broadcast the system message
-    await manager.broadcast(
-        {
-            "type": "system",
-            "data": {
-                "id": str(system_message["_id"]),
-                "content": system_message["content"],
-                "sender_id": "system",
-                "sender_username": "system",
-                "created_at": system_message["created_at"].isoformat(),
-            },
-        },
-        room_id,
     )
 
     return {
