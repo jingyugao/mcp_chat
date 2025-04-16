@@ -160,7 +160,7 @@ async def connect_server(name: str):
         raise HTTPException(status_code=500, detail="Failed to connect to server")
 
 
-@router.post("/api/disconnect_server")
+@router.post("/disconnect_server")
 async def disconnect_server(name: str):
     """Disconnect a server from the registry"""
     client = mcp_clients[name]
@@ -168,7 +168,7 @@ async def disconnect_server(name: str):
     return {"status": "success", "message": "Server disconnected successfully"}
 
 
-@router.delete("/api/remove_server")
+@router.delete("/remove_server")
 async def remove_server(name: str):
     """Remove a server from the registry"""
     await disconnect_server(name)
@@ -182,7 +182,7 @@ class ToolExecuteRequest(BaseModel):
     parameters: dict
 
 
-@router.post("/api/execute_tool")
+@router.post("/execute_tool")
 async def execute_tool(request: ToolExecuteRequest):
     """Execute a tool on a server"""
     client = get_connected_client(request.server)
@@ -200,7 +200,7 @@ class GetPromptRequest(BaseModel):
     parameters: dict
 
 
-@router.post("/api/get_prompt")
+@router.post("/get_prompt")
 async def get_prompt(request: GetPromptRequest):
     """Get a prompt from a server"""
     client = get_connected_client(request.server)
@@ -217,7 +217,7 @@ class ResourceFetchRequest(BaseModel):
     resource: str
 
 
-@router.post("/api/fetch_resource")
+@router.post("/fetch_resource")
 async def fetch_resource(request: ResourceFetchRequest):
     """Fetch a resource from a server"""
     client = get_connected_client(request.server)

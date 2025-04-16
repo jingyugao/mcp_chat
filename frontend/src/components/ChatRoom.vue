@@ -69,7 +69,7 @@
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { httpClient } from '../utils/http-client'
-import { API_BASE_URL } from '../api/config'
+import { API_URLS } from '../api/config'
 
 export default {
 	name: 'ChatRoom',
@@ -101,7 +101,7 @@ export default {
 			}
 
 			eventSource.value = new EventSource(
-				`${API_BASE_URL}/api/chat-rooms/${route.params.roomId}/events?token=${token}`,
+				`${API_URLS.chat.events(route.params.roomId)}?token=${token}`,
 			)
 
 			eventSource.value.onopen = () => {
@@ -141,8 +141,7 @@ export default {
 
 		const fetchRoomInfo = async () => {
 			try {
-				
-				const response = await httpClient.get(`${API_BASE_URL}/api/chat-rooms/room-info/${route.params.roomId}`)
+				const response = await httpClient.get(API_URLS.chat.roomInfo(route.params.roomId))
 				if (response.ok) {
 					room.value = await response.json()
 				} else {
@@ -156,7 +155,7 @@ export default {
 		const fetchMessages = async () => {
 			isLoading.value = true
 			try {
-				const response = await httpClient.get(`${API_BASE_URL}/api/chat-rooms/${route.params.roomId}/messages`)
+				const response = await httpClient.get(API_URLS.chat.messages(route.params.roomId))
 				if (response.ok) {
 					messages.value = await response.json()
 					scrollToBottom()
@@ -175,7 +174,7 @@ export default {
 
 			isSending.value = true
 			try {
-				const response = await httpClient.post(`${API_BASE_URL}/api/chat-rooms/${route.params.roomId}/messages`, {
+				const response = await httpClient.post(API_URLS.chat.messages(route.params.roomId), {
 					content: newMessage.value.trim()
 				})
 
@@ -209,7 +208,7 @@ export default {
 			inviteError.value = ''
 
 			try {
-				const response = await httpClient.post(`${API_BASE_URL}/api/chat-rooms/${route.params.roomId}/invite`, {
+				const response = await httpClient.post(API_URLS.chat.invite(route.params.roomId), {
 					username: inviteUsername.value.trim()
 				})
 

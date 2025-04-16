@@ -68,18 +68,18 @@ async def get_chat_room(room_id: str):
 router = APIRouter()
 
 
-@router.get("/chat-rooms", response_model=List[ChatRoom])
+@router.get("/room_list", response_model=List[ChatRoom])
 async def get_rooms(current_user: dict = Depends(get_current_user)):
     ret = await get_chat_rooms(str(current_user["_id"]))
     return ret
 
 
-@router.post("/chat-rooms", response_model=ChatRoom)
+@router.post("/create_room", response_model=ChatRoom)
 async def create_room(params: dict, current_user: dict = Depends(get_current_user)):
     return await create_chat_room(params["name"], str(current_user["_id"]))
 
 
-@router.get("/chat-rooms/room-info/{room_id}", response_model=ChatRoom)
+@router.get("/room_info/{room_id}", response_model=ChatRoom)
 async def get_room_info(room_id: str, current_user: dict = Depends(get_current_user)):
     room = await get_chat_room(room_id)
     if not room:
@@ -87,7 +87,7 @@ async def get_room_info(room_id: str, current_user: dict = Depends(get_current_u
     return room
 
 
-@router.get("/chat-rooms/{room_id}/messages", response_model=List[Message])
+@router.get("/room_messages/{room_id}", response_model=List[Message])
 async def get_messages(room_id: str, current_user: dict = Depends(get_current_user)):
 
     messages = await get_room_messages(room_id)
@@ -95,7 +95,7 @@ async def get_messages(room_id: str, current_user: dict = Depends(get_current_us
     return messages
 
 
-@router.post("/chat-rooms/{room_id}/messages")
+@router.post("/send_message/{room_id}")
 async def send_message(
     room_id: str, message: dict, current_user: dict = Depends(get_current_user)
 ):
@@ -106,7 +106,7 @@ async def send_message(
     return {"status": "success"}
 
 
-@router.get("/chat-rooms/{room_id}/events")
+@router.get("/room_events/{room_id}")
 async def sse_endpoint(
     request: Request, room_id: str, current_user: dict = Depends(get_current_user)
 ):
@@ -131,12 +131,13 @@ async def sse_endpoint(
     return EventSourceResponse(event_generator())
 
 
+
 @router.get("/user/search")
 async def search_user(username: str, current_user: dict = Depends(get_current_user)):
     return await search_user(username, str(current_user["_id"]))
 
 
-@router.post("/chat-rooms/{room_id}/invite")
+@router.post("invite_user/{room_id}")
 async def invite_user(
     room_id: str,
     invite_request: InviteRequest,

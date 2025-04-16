@@ -7,6 +7,9 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
     && rm -rf /var/lib/apt/lists/*
+RUN pip install uv fastapi uvicorn
+
+
 ENV PATH="/app/.venv/bin:$PATH"
 
 # 复制项目文件

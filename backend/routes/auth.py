@@ -23,6 +23,8 @@ class UserLogin(BaseModel):
     username: str
     password: str
 
+
+
 @router.post("/register", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def register(user: User):
     # Check if username already exists
