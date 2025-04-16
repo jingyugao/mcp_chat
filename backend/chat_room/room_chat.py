@@ -1,9 +1,7 @@
 
-from typing import Annotated, Dict, Optional, Set, List
+from typing import Dict
 
 import asyncio
-from sse_starlette.sse import EventSourceResponse
-from backend.model.model import ChatRoom, User, Message, ChatRoom
 from backend.db.chat_room import save_message
 
 

@@ -1,12 +1,10 @@
 import asyncio
-import functools
 import json
 import typing
-import mcp.server.fastmcp
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional
 
 from mcp import Tool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from backend.models import Message as BaseMessage
 
 from mcp.server.fastmcp import FastMCP

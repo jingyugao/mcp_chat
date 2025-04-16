@@ -1,5 +1,3 @@
-import os
-from motor.motor_asyncio import AsyncIOMotorClient
 from datetime import datetime
 
 from backend.db.conn import db

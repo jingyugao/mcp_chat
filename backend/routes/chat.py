@@ -2,7 +2,6 @@ import bson
 from fastapi import (
     APIRouter,
     Depends,
-    status,
     HTTPException,
     Request,
 )
@@ -20,13 +19,12 @@ from backend.db.chat_room import (
 
 
 
-from typing import Annotated, Dict, Optional, Set, List
+from typing import List
 import json
 from datetime import datetime
-from pydantic import BaseModel, BeforeValidator, Field
+from pydantic import BaseModel
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
-import asyncio
 from sse_starlette.sse import EventSourceResponse
 from backend.model.model import ChatRoom, Message
 

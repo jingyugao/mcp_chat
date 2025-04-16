@@ -4,7 +4,7 @@ from typing import Optional
 import os
 import jwt
 from fastapi import HTTPException, status, Request
-from fastapi.security import HTTPBearer, OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordBearer
 from backend.db.user import get_user_by_username, get_token,save_token
 # JWT配置
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here")

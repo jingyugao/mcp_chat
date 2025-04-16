@@ -17,7 +17,6 @@ from openai import OpenAI
 
 from dotenv import load_dotenv
 
-from backend.model.model import User
 from backend.routes import auth, chat,mcp
 
 load_dotenv()

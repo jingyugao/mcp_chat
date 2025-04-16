@@ -1,31 +1,14 @@
-import asyncio
-from calendar import c
-from contextlib import asynccontextmanager
-import os
-from pydoc import cli
 from fastapi import (
     APIRouter,
     HTTPException,
-    Request,
-    WebSocket,
-    WebSocketDisconnect,
-    Depends,
-    logger,
-    status,
 )
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-import logging
-import traceback
-import json
 
-from typing import Optional, Dict, List, Set
+from typing import Optional, Dict, List
 from pydantic import BaseModel
 
 from mcp import ClientSession
 from mcp.types import ResourceTemplate, Prompt, Resource, Tool
 from mcp.client.sse import sse_client
-import mcp as mcp
 
 
 router = APIRouter()
