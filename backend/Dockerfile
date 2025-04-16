@@ -7,8 +7,6 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
     && rm -rf /var/lib/apt/lists/*
-RUN pip install uv fastapi uvicorn
-
 ENV PATH="/app/.venv/bin:$PATH"
 
 # 复制项目文件
@@ -29,4 +27,4 @@ ENV PYTHONUNBUFFERED=1
 EXPOSE 14000
 
 # 启动命令
-CMD ["uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "14000", "--reload"] 
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "14000", "--reload"] 

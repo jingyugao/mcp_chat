@@ -4,12 +4,13 @@ from contextlib import asynccontextmanager
 import os
 from pydoc import cli
 from fastapi import (
-    FastAPI,
+    APIRouter,
     HTTPException,
     Request,
     WebSocket,
     WebSocketDisconnect,
     Depends,
+    logger,
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,67 +26,9 @@ from mcp import ClientSession
 from mcp.types import ResourceTemplate, Prompt, Resource, Tool
 from mcp.client.sse import sse_client
 import mcp as mcp
-from openai import OpenAI
-
-from dotenv import load_dotenv
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from datetime import timedelta
-
-from backend.models import User
-from backend.database import get_current_user, cleanup_expired_tokens
-from backend.routes import auth, chat
-
-load_dotenv()
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
-
-app = FastAPI()
 
 
-llm = OpenAI(
-    api_key=os.getenv("DEEPSEEK_API_KEY"),
-    base_url="https://api.deepseek.com",
-)
-
-
-# Error handling middleware
-@app.middleware("http")
-async def error_handling_middleware(request: Request, call_next):
-    try:
-        response = await call_next(request)
-        return response
-    except HTTPException as http_exc:
-        # Log the exception details
-        logger.error(f"HTTP Exception: {http_exc.status_code} - {http_exc.detail}")
-        # Re-raise the exception to let FastAPI handle it
-        raise http_exc
-    except Exception as e:
-        # Log the full error with traceback for unexpected errors
-        logger.error(f"Error occurred: {str(e)}\n{traceback.format_exc()}")
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": "Internal server error occurred"},
-        )
-
-
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Include the authentication router
-app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
-
-# Include the chat router
-app.include_router(chat.router, prefix="/api", tags=["chat"])
+router = APIRouter()
 
 
 class ServerInfo(BaseModel):
@@ -148,7 +91,7 @@ class MCPClient:
             if self._streams_context:
                 await self._streams_context.__aexit__(None, None, None)
         except Exception as e:
-            logger.error(f"Error during cleanup: {str(e)}")
+            pass
         finally:
             self.status = "disconnected"
             self.session = None
@@ -173,7 +116,7 @@ def get_connected_client(name: str) -> MCPClient:
     return mcp_clients[name]
 
 
-@app.get("/api/servers")
+@router.get("/servers")
 async def list_servers() -> List[ServerInfo]:
     """List all registered servers and their status"""
     return [
@@ -190,7 +133,7 @@ async def list_servers() -> List[ServerInfo]:
     ]
 
 
-@app.post("/api/add_server")
+@router.post("/add_server")
 async def add_server(server_info: ServerInfo):
     """Add a new server to the registry"""
     if server_info.name in mcp_clients:
@@ -199,7 +142,7 @@ async def add_server(server_info: ServerInfo):
     return {"status": "success", "message": "Server added successfully"}
 
 
-@app.post("/api/connect_server")
+@router.post("/connect_server")
 async def connect_server(name: str):
     """Connect to a registered server"""
     if name not in mcp_clients:
@@ -217,7 +160,7 @@ async def connect_server(name: str):
         raise HTTPException(status_code=500, detail="Failed to connect to server")
 
 
-@app.post("/api/disconnect_server")
+@router.post("/api/disconnect_server")
 async def disconnect_server(name: str):
     """Disconnect a server from the registry"""
     client = mcp_clients[name]
@@ -225,7 +168,7 @@ async def disconnect_server(name: str):
     return {"status": "success", "message": "Server disconnected successfully"}
 
 
-@app.delete("/api/remove_server")
+@router.delete("/api/remove_server")
 async def remove_server(name: str):
     """Remove a server from the registry"""
     await disconnect_server(name)
@@ -239,7 +182,7 @@ class ToolExecuteRequest(BaseModel):
     parameters: dict
 
 
-@app.post("/api/execute_tool")
+@router.post("/api/execute_tool")
 async def execute_tool(request: ToolExecuteRequest):
     """Execute a tool on a server"""
     client = get_connected_client(request.server)
@@ -257,7 +200,7 @@ class GetPromptRequest(BaseModel):
     parameters: dict
 
 
-@app.post("/api/get_prompt")
+@router.post("/api/get_prompt")
 async def get_prompt(request: GetPromptRequest):
     """Get a prompt from a server"""
     client = get_connected_client(request.server)
@@ -274,7 +217,7 @@ class ResourceFetchRequest(BaseModel):
     resource: str
 
 
-@app.post("/api/fetch_resource")
+@router.post("/api/fetch_resource")
 async def fetch_resource(request: ResourceFetchRequest):
     """Fetch a resource from a server"""
     client = get_connected_client(request.server)
@@ -286,83 +229,20 @@ async def fetch_resource(request: ResourceFetchRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/subscribe_resource")
-async def subscribe_resource(request: ResourceFetchRequest):
-    """Fetch a resource from a server"""
-    client = get_connected_client(request.server)
-
-    try:
-        result = await client.session.subscribe_resource(request.resource)
-        return {"status": "success", "result": result}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
-def get_tools():
-    tools = []
-    for client in mcp_clients.values():
-        for tool in client.ServerInfo.tools:
-            tools.append(get_tool_metadata(tool))
-    return tools
-
-
-def get_tool_metadata(tool: Tool):
-    return {
-        "type": "function",
-        "function": {
-            "name": tool.name,
-            "description": tool.description,
-            "parameters": tool.inputSchema,
-        },
-    }
-
-
-@app.post("/api/dev/list_tool_of_chat")
+@router.post("/list_tool_of_chat")
 async def list_tool_of_chat(request: Dict[str, str]):
-    """List tools of chat"""
-    messages = [{"role": "user", "content": request["content"]}]
-    response = llm.chat.completions.create(
-        model="deepseek-chat", messages=messages, tools=get_tools()
-    )
-    message = response.choices[0].message
-    print(message)
-    return {
-        "status": "success",
-        "result": message.tool_calls,
-    }
+    pass
+    # """List tools of chat"""
+    # messages = [{"role": "user", "content": request["content"]}]
+    # response = llm.chat.completions.create(
+    #     model="deepseek-chat", messages=messages, tools=get_tools()
+    # )
+    # message = response.choices[0].message
+    # print(message)
+    # return {
+    #     "status": "success",
+    #     "result": message.tool_calls,
+    # }
 
-
-
-# Background task to clean up expired tokens
-async def cleanup_tokens_task():
-    while True:
-        try:
-            await cleanup_expired_tokens()
-        except Exception as e:
-            logger.error(f"Error cleaning up expired tokens: {e}")
-        await asyncio.sleep(3600)  # Run every hour
-
-
-@app.on_event("startup")
-async def startup_event():
-    # Start the token cleanup task
-    asyncio.create_task(cleanup_tokens_task())
-
-
-if __name__ == "__main__":
-
-    import uvicorn
-
-    # Configure uvicorn server with proper cleanup
-    config = uvicorn.Config(
-        app,
-        host="127.0.0.1",
-        port=14000,
-        loop="asyncio",
-        reload=True,
-        timeout_keep_alive=30,
-        timeout_graceful_shutdown=10,
-    )
-
-    server = uvicorn.Server(config)
-    server.run()

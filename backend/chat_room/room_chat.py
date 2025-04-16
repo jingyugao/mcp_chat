@@ -3,8 +3,8 @@ from typing import Annotated, Dict, Optional, Set, List
 
 import asyncio
 from sse_starlette.sse import EventSourceResponse
-from backend.models import ChatRoom, User, Message, ChatRoom
-from backend.database import save_message
+from backend.model.model import ChatRoom, User, Message, ChatRoom
+from backend.db.chat_room import save_message
 
 
 # SSE connection manager

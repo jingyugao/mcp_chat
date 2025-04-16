@@ -7,6 +7,17 @@ from fastapi import (
     Request,
 )
 from backend.chat_room.room_chat import chat_room_manager as room_chat
+from backend.db.user import search_user, get_user_by_username
+from backend.routes.util import get_current_user
+from backend.db.chat_room import (
+    get_room_messages,
+    create_chat_room,
+    get_chat_room,
+    add_participant_to_room,
+    get_chat_rooms,
+)
+
+
 
 
 from typing import Annotated, Dict, Optional, Set, List
@@ -17,18 +28,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import asyncio
 from sse_starlette.sse import EventSourceResponse
-from backend.models import ChatRoom, User, Message, ChatRoom
-from backend.database import (
-    save_message,
-    get_room_messages,
-    create_chat_room,
-    get_chat_room,
-    add_participant_to_room,
-    get_current_user,
-    get_user_by_username,
-    get_chat_rooms,
-)
-
+from backend.model.model import ChatRoom, Message
 
 class InviteRequest(BaseModel):
     username: str
