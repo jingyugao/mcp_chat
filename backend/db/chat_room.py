@@ -30,8 +30,6 @@ async def save_message(
 
 
 async def get_room_messages(room_id: str, limit: int = 50):
-    print("room_id:", room_id)
-
     cursor = messages_collection.find({"room_id": room_id})
     cursor.sort("created_at", -1).limit(limit)
     messages = await cursor.to_list(length=limit)

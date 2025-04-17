@@ -83,7 +83,6 @@ async def get_room_info(room_id: str, current_user: dict = Depends(get_current_u
         raise HTTPException(status_code=404, detail="Room not found")
     users = await get_users_by_ids(room["participants"])
     room["participant_users"] = {str(user["_id"]): user["username"] for user in users}
-    print(room)
     return room
 
 
