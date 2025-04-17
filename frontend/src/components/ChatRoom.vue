@@ -404,6 +404,7 @@ export default {
 			inviteUser,
 			handleInput,
 			handleKeyDown,
+			handleEnterKey,
 			showMentionSuggestions,
 			filteredParticipants,
 			selectedMentionIndex,
