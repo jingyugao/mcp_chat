@@ -61,3 +61,6 @@ async def search_user(username: str, user_id: str):
     return await users_collection.find(
         {"username": f"/{username}/", "_id": {"$ne": user_id}}
     ).to_list(length=100)
+
+async def get_users_by_ids(user_ids: list[str]):
+    return await users_collection.find({"_id": {"$in": [ObjectId(user_id) for user_id in user_ids]}}).to_list(length=100)

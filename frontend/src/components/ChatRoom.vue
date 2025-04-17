@@ -49,19 +49,19 @@
 				<!-- Mention suggestions -->
 				<div v-if="showMentionSuggestions" class="mention-suggestions">
 					<div 
-						v-for="username in filteredParticipants" 
-						:key="username"
+						v-for="user in filteredParticipants" 
+						:key="user.id"
 						class="mention-item"
-						:class="{ 'selected': selectedMentionIndex === filteredParticipants.indexOf(username) }"
-						@click="selectMention(username)"
+						:class="{ 'selected': selectedMentionIndex === filteredParticipants.indexOf(user) }"
+						@click="selectMention(user)"
 					>
-						{{ username }}
+						{{ user.username }}
 					</div>
 				</div>
 			</div>
 			<button @click="sendMessage" :disabled="!newMessage.trim() || isSending || !isConnected" :class="{ 'sending': isSending }">
-				<span v-if="isSending">Sending...</span>
-				<span v-else>Send</span>
+				<span v-if="isSending">...</span>
+				<span v-else>↑</span>
 			</button>
 		</div>
 
@@ -122,11 +122,15 @@ export default {
 		const mentionStartIndex = ref(-1)
 
 		const filteredParticipants = computed(() => {
-			if (!mentionSearch.value) return room.value.participant_names || []
-			const search = mentionSearch.value.toLowerCase()
-			return (room.value.participant_names || []).filter(p => 
-				p.toLowerCase().includes(search)
-			)
+			const participants = []
+			if (!room.value.participants) return participants
+			
+			for (const [id, username] of Object.entries(room.value.participants)) {
+				if (!mentionSearch.value || username.toLowerCase().includes(mentionSearch.value.toLowerCase())) {
+					participants.push({ id, username })
+				}
+			}
+			return participants
 		})
 
 		const connectSSE = () => {
@@ -179,7 +183,14 @@ export default {
 			try {
 				const response = await httpClient.get(API_URLS.chat.roomInfo(route.params.roomId))
 				if (response.ok) {
-					room.value = await response.json()
+					const roomData = await response.json()
+					room.value = {
+						...roomData,
+						participants: roomData.participants.map(p => ({
+							id: p.id,
+							username: p.username
+						}))
+					}
 				} else {
 					console.error('Failed to fetch room info')
 				}
@@ -246,10 +257,10 @@ export default {
 			}
 		}
 
-		const selectMention = (username) => {
+		const selectMention = (user) => {
 			const beforeMention = newMessage.value.slice(0, mentionStartIndex.value)
 			const afterMention = newMessage.value.slice(mentionStartIndex.value + mentionSearch.value.length + 1)
-			newMessage.value = `${beforeMention}@${username} ${afterMention}`
+			newMessage.value = `${beforeMention}@${user.username} ${afterMention}`
 			showMentionSuggestions.value = false
 			mentionStartIndex.value = -1
 		}
@@ -261,8 +272,12 @@ export default {
 			
 			while ((match = regex.exec(text)) !== null) {
 				const username = match[1]
-				if (room.value.participant_names?.includes(username)) {
+				const userId = Object.entries(room.value.participants || {})
+					.find(([, name]) => name === username)?.[0]
+				
+				if (userId) {
 					mentions.push({
+						user_id: userId,
 						username: username,
 						index: match.index
 					})
@@ -362,7 +377,7 @@ export default {
 			
 			for (const mention of sortedMentions) {
 				const mentionText = `@${mention.username}`
-				content = content.slice(0, mention.index) +`<span class="mention">${mentionText}</span>` +content.slice(mention.index + mentionText.length)
+				content = content.slice(0, mention.index) + `<span class="mention" data-user-id="${mention.user_id}">${mentionText}</span>` + content.slice(mention.index + mentionText.length)
 			}
 			
 			return content
@@ -419,9 +434,9 @@ export default {
 .chat-room {
 	display: flex;
 	flex-direction: column;
-	height: 100vh;
+	height: 80vh;
 	padding: 20px;
-	max-width: 800px;
+	max-width: 1200px;
 	margin: 0 auto;
 }
 
@@ -475,7 +490,7 @@ export default {
 	padding: 20px;
 	background-color: #f9f9f9;
 	border-radius: 8px;
-	margin-bottom: 20px;
+	margin-bottom: 15px;
 	position: relative;
 }
 
@@ -537,19 +552,27 @@ export default {
 	background-color: #e3f2fd;
 }
 
+/* 聊天输入框容器样式 */
 .chat-input {
-	display: flex;
-	gap: 10px;
+	position: relative;     /* 相对定位,作为子元素的定位参考 */
+	display: flex;         /* 弹性布局 */
+	gap: 10px;            /* 子元素之间的间距为10px */
+	width: 100%;          /* 宽度占满父容器 */
+	max-width: 1100px;    /* 最大宽度限制在1100px */
+	margin: 0 auto;       /* 水平居中 */
 }
 
+/* 文本输入框样式 */
 .chat-input textarea {
-	flex: 1;
-	padding: 10px;
-	border: 1px solid #ddd;
-	border-radius: 4px;
-	resize: none;
-	font-family: inherit;
-	transition: border-color 0.2s;
+	width: 100%;          /* 宽度占满父容器 */
+	min-width: 0;         /* 最小宽度为0,防止溢出 */
+	padding: 10px;        /* 内边距10px */
+	padding-right: 60px;  /* 右侧内边距60px,为发送按钮预留空间 */
+	border: 1px solid #ddd; /* 灰色边框 */
+	border-radius: 4px;    /* 圆角边框 */
+	resize: none;          /* 禁止手动调整大小 */
+	font-family: inherit;  /* 继承父元素字体 */
+	transition: border-color 0.2s; /* 边框颜色变化动画 */
 }
 
 .chat-input textarea:focus {
@@ -563,18 +586,27 @@ export default {
 }
 
 .chat-input button {
-	padding: 10px 20px;
+	position: absolute;
+	right: 10px;
+	bottom: 10px;
+	width: 40px;
+	height: 40px;
+	padding: 0;
+	border: none;
+	border-radius: 50%;
 	background-color: #1976d2;
 	color: white;
-	border: none;
-	border-radius: 4px;
 	cursor: pointer;
 	transition: all 0.2s;
-	min-width: 80px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1;
 }
 
 .chat-input button:hover:not(:disabled) {
 	background-color: #1565c0;
+	transform: scale(1.05);
 }
 
 .chat-input button:disabled {
@@ -705,6 +737,7 @@ export default {
 .input-wrapper {
 	position: relative;
 	flex: 1;
+	min-width: 0;
 }
 
 .mention-suggestions {

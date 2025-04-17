@@ -21,4 +21,5 @@ RUN npm install -g serve
 EXPOSE 3000
 
 # 启动命令
-CMD ["serve", "-s", "dist", "-l", "3000"] 
+CMD ["npm", "run", "serve", "--", "--host", "0.0.0.0", "--port", "3000"]
+# CMD ["serve", "-s", "dist", "-l", "3000"] 

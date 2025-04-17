@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from backend.model.base import MongoBaseModel
@@ -16,8 +16,8 @@ class Message(MongoBaseModel):
 class ChatRoom(MongoBaseModel):
     name: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    participants: list[str] = Field(default_factory=list)
-    participant_names: list[str] = Field(default_factory=list)
+    participants: List[str] = Field(default_factory=list)
+    participant_users: Dict[str, str] = Field(default_factory=dict)
     is_public: bool = True
 
 
