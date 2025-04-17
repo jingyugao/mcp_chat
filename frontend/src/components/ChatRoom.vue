@@ -186,10 +186,7 @@ export default {
 					const roomData = await response.json()
 					room.value = {
 						...roomData,
-						participants: roomData.participants.map(p => ({
-							id: p.id,
-							username: p.username
-						}))
+						participant_names: Object.values(roomData.participant_users || {})
 					}
 				} else {
 					console.error('Failed to fetch room info')
@@ -272,10 +269,11 @@ export default {
 			
 			while ((match = regex.exec(text)) !== null) {
 				const username = match[1]
-				const userId = Object.entries(room.value.participants || {})
-					.find(([, name]) => name === username)?.[0]
+				const entry = Object.entries(room.value.participant_users || {})
+					.find(([, name]) => name === username)
 				
-				if (userId) {
+				if (entry) {
+					const [userId] = entry
 					mentions.push({
 						user_id: userId,
 						username: username,

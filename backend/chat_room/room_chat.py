@@ -1,3 +1,4 @@
+import logging
 from typing import Dict, Set
 
 import asyncio
@@ -38,6 +39,7 @@ class ChatRoomManager:
     async def send_message(
         self, content: str, user_id: str, user_name: str, room_id: str, mentions: list = None
     ):
+        logging.info(f"send_message: {content} {user_id} {user_name} {room_id} {mentions}")
         saved_message = await save_message(
             content=content,
             sender_id=user_id,
@@ -54,7 +56,8 @@ class ChatRoomManager:
                     "sender_id": saved_message["sender_id"],
                     "sender_username": saved_message["sender_username"],
                     "created_at": saved_message["created_at"].isoformat(),
-                    "mentions": saved_message.get("mentions", [])
+                    "mentions": saved_message.get("mentions", []),
+                    "room_id": room_id,
                 },
             },
             room_id,
