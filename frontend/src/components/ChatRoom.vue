@@ -123,9 +123,9 @@ export default {
 
 		const filteredParticipants = computed(() => {
 			const participants = []
-			if (!room.value.participants) return participants
+			if (!room.value.participant_users) return participants
 			
-			for (const [id, username] of Object.entries(room.value.participants)) {
+			for (const [id, username] of Object.entries(room.value.participant_users)) {
 				if (!mentionSearch.value || username.toLowerCase().includes(mentionSearch.value.toLowerCase())) {
 					participants.push({ id, username })
 				}
