@@ -1,19 +1,20 @@
-from curses.ascii import DEL
 from datetime import timedelta
 from fastapi import APIRouter, HTTPException, Depends, status
-from fastapi.security import OAuth2PasswordRequestForm, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
-from backend.database import (
+from backend.db.user import (
     get_user_by_username,
     get_user_by_email,
     create_user,
     verify_password,
-    create_access_token,
-    get_current_user,
     delete_token,
-    security,
 )
-from backend.models import UserCreate, Token, User
+from backend.routes.util import get_current_user, create_access_token
+from backend.model.model import User, Token
+
+
+# 创建 Bearer token 验证器
+security = HTTPBearer()
 
 router = APIRouter()
 
@@ -23,8 +24,9 @@ class UserLogin(BaseModel):
     password: str
 
 
+
 @router.post("/register", response_model=dict, status_code=status.HTTP_201_CREATED)
-async def register(user: UserCreate):
+async def register(user: User):
     # Check if username already exists
     db_user_by_username = await get_user_by_username(user.username)
     if db_user_by_username:
@@ -68,7 +70,6 @@ async def login(user_data: UserLogin):
 @router.get("/me", response_model=User)
 async def read_users_me(current_user: User = Depends(get_current_user)):
     # Map the dictionary from DB to the Pydantic model, excluding password
-    print(current_user)
     current_user["password"] = ""
     return current_user
 

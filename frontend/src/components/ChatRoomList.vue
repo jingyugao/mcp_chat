@@ -9,7 +9,7 @@
 			<div v-for="room in rooms" :key="room.id" class="room-card" @click="enterRoom(room)">
 				<h3>{{ room.name }}</h3>
 				<div class="room-info">
-					<span class="participants-count">{{ room.participants.length }} participants</span>
+					<span class="participants-count">{{ room.participant_names.length }} participants</span>
 					<span class="created-at">{{ formatDate(room.created_at) }}</span>
 				</div>
 			</div>
@@ -38,8 +38,8 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { httpClient } from '../utils/http-client'
-import { API_BASE_URL } from '../api/config'
 
+import { API_URLS } from '../api/config'
 export default {
 	name: 'ChatRoomList',
 	setup() {
@@ -50,7 +50,7 @@ export default {
 
 		const fetchRooms = async () => {
 			try {
-				const response = await httpClient.get(`${API_BASE_URL}/api/chat-rooms`)
+				const response = await httpClient.get(`${API_URLS.chat.rooms}`)
 				if (response.ok) {
 					rooms.value = await response.json()
 				}
@@ -63,7 +63,7 @@ export default {
 			if (!newRoomName.value.trim()) return
 
 			try {
-				const response = await httpClient.post(`${API_BASE_URL}/api/chat-rooms`, {
+				const response = await httpClient.post(`${API_URLS.chat.createRoom}`, {
 					name: newRoomName.value.trim()
 				})
 

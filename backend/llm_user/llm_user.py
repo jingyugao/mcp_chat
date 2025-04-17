@@ -1,16 +1,19 @@
 import asyncio
-import functools
 import json
+import logging
+import threading
 import typing
-import mcp.server.fastmcp
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional
 
 from mcp import Tool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from backend.chat_room import room_chat
+from backend.db.chat_room import add_participant_to_room, get_chat_room, get_room_participants
+from backend.db.user import create_user, get_user_by_username
+from backend.model.model import User, UserRole
 from backend.models import Message as BaseMessage
 
 from mcp.server.fastmcp import FastMCP
-
 
 
 class ToolCall(BaseModel):
@@ -122,7 +125,7 @@ def get_tool_description(tool: Tool):
             parameters=Parameters(
                 type="object",
                 properties={
-                    k: ParameterProperty(type=v["type"],description=v['title'])
+                    k: ParameterProperty(type=v["type"], description=v["title"])
                     for k, v in tool.inputSchema["properties"].items()
                 },
                 required=list(tool.inputSchema["required"]),
@@ -130,12 +133,59 @@ def get_tool_description(tool: Tool):
         ),
     )
 
+class LlmUser:
+    def __init__(self, user_name: str):
+        self.user_name = user_name
+        self.user = None 
+        self.inited=False
+        self.user_id =""
+
+    async def start(self):
+        print("start llm user",self.user_name)
+        user = await get_user_by_username(self.user_name)
+        if user is None:
+            user = await create_user(
+                User(
+                    username=self.user_name,
+                    password=self.user_name,
+                    email=self.user_name+"@llm.com",
+                    role=UserRole.LLM,
+                )
+            )
+
+        if user is None:
+            raise Exception("Failed to create llm user")
+        self.user = user
+        self.user_id = str(user["_id"])
+        self.inited=True
+        asyncio.create_task(self.task_chat())
+        asyncio.create_task(self.task_enter_room())
+        
+
+    async def task_chat(self) -> None:
+        while True:
+            message = await room_chat.chat_room_manager.global_message_queue.get()
+            print(message)
+        
+    async def task_enter_room(self) -> None:
+        while True:
+            message = await room_chat.chat_room_manager.enter_room_queue.get()
+            _, room_id = message
+            room_participants = await get_room_participants(room_id)
+            print(self.user_id,room_participants)
+            if self.user_id not in room_participants:
+                await add_participant_to_room(room_id=room_id,user_id=self.user_id)
+
+
+all_llm_users = [LlmUser(user_name="llm_user")]
 
 sys_mcp = FastMCP()
 
 
 @sys_mcp.tool()
-def summary(content: typing.Annotated[str, "the content to be summarized"]) -> typing.Annotated[str, "the summarized content"]:
+def summary(
+    content: typing.Annotated[str, "the content to be summarized"],
+) -> typing.Annotated[str, "the summarized content"]:
     """
     summary the content
 
@@ -143,11 +193,14 @@ def summary(content: typing.Annotated[str, "the content to be summarized"]) -> t
     return content
 
 
-async def main() -> None:
-    tools = await sys_mcp.list_tools()
-    print(tools)
-    print(json.dumps([get_tool_description(tool).model_dump() for tool in tools]))
+def init_task():
+    for llm_user in all_llm_users:
+        asyncio.create_task(llm_user.start())
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+
+
+
+
+def init_llm_user():
+    init_task()
