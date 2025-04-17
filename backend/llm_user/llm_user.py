@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import threading
 import typing
 from typing import Callable, Dict, List, Optional
@@ -7,6 +8,7 @@ from typing import Callable, Dict, List, Optional
 from mcp import Tool
 from pydantic import BaseModel
 from backend.chat_room import room_chat
+from backend.db.chat_room import add_participant_to_room, get_chat_room, get_room_participants
 from backend.db.user import create_user, get_user_by_username
 from backend.model.model import User, UserRole
 from backend.models import Message as BaseMessage
@@ -131,6 +133,51 @@ def get_tool_description(tool: Tool):
         ),
     )
 
+class LlmUser:
+    def __init__(self, user_name: str):
+        self.user_name = user_name
+        self.user = None 
+        self.inited=False
+        self.user_id =""
+
+    async def start(self):
+        print("start llm user",self.user_name)
+        user = await get_user_by_username(self.user_name)
+        if user is None:
+            user = await create_user(
+                User(
+                    username=self.user_name,
+                    password=self.user_name,
+                    email=self.user_name+"@llm.com",
+                    role=UserRole.LLM,
+                )
+            )
+
+        if user is None:
+            raise Exception("Failed to create llm user")
+        self.user = user
+        self.user_id = str(user["_id"])
+        self.inited=True
+        asyncio.create_task(self.task_chat())
+        asyncio.create_task(self.task_enter_room())
+        
+
+    async def task_chat(self) -> None:
+        while True:
+            message = await room_chat.chat_room_manager.global_message_queue.get()
+            print(message)
+        
+    async def task_enter_room(self) -> None:
+        while True:
+            message = await room_chat.chat_room_manager.enter_room_queue.get()
+            _, room_id = message
+            room_participants = await get_room_participants(room_id)
+            print(self.user_id,room_participants)
+            if self.user_id not in room_participants:
+                await add_participant_to_room(room_id=room_id,user_id=self.user_id)
+
+
+all_llm_users = [LlmUser(user_name="llm_user")]
 
 sys_mcp = FastMCP()
 
@@ -146,29 +193,14 @@ def summary(
     return content
 
 
-async def llm_user_chat() -> None:
-
-    user = await get_user_by_username("llm_user")
-    if user is None:
-        user = await create_user(
-            User(
-                username="llm_user",
-                password="llm_user",
-                email="llm_user@gmail.com",
-                role=UserRole.LLM,
-            )
-        )
-
-    if user is None:
-        raise Exception("Failed to create llm user")
-    while True:
-        message = await room_chat.chat_room_manager.global_message_queue.get()
-        print(message)
+def init_task():
+    for llm_user in all_llm_users:
+        asyncio.create_task(llm_user.start())
 
 
-def wrap_async_func():
-    asyncio.run(llm_user_chat())
+
+
 
 
 def init_llm_user():
-    asyncio.create_task(llm_user_chat())
+    init_task()

@@ -14,6 +14,7 @@ from backend.db.chat_room import (
     get_chat_room,
     add_participant_to_room,
     get_chat_rooms,
+    get_usernames_for_ids,
 )
 
 
@@ -81,6 +82,9 @@ async def get_room_info(room_id: str, current_user: dict = Depends(get_current_u
     room = await get_chat_room(room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
+    usernames = await get_usernames_for_ids(room["participants"])
+    room["participant_names"] = [usernames.get(p_id, p_id) for p_id in room["participants"]]
+    
     return room
 
 
@@ -97,7 +101,11 @@ async def send_message(
     room_id: str, message: dict, current_user: dict = Depends(get_current_user)
 ):
     await room_chat.send_message(
-        message["content"], str(current_user["_id"]), current_user["username"], room_id
+        message["content"], 
+        str(current_user["_id"]), 
+        current_user["username"], 
+        room_id,
+        message.get("mentions", [])
     )
     return {"status": "success"}
 

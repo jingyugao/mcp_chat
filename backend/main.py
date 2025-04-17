@@ -29,13 +29,6 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-
-llm = OpenAI(
-    api_key=os.getenv("DEEPSEEK_API_KEY"),
-    base_url="https://api.deepseek.com",
-)
-
-
 # Error handling middleware
 @app.middleware("http")
 async def error_handling_middleware(request: Request, call_next):

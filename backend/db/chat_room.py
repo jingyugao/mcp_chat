@@ -1,16 +1,27 @@
 from datetime import datetime
+import logging
+
+from bson import ObjectId
 
 from backend.db.conn import db
+from backend.db.user import get_user_by_id
+
 # 数据库集合
 messages_collection = db.messages
 chat_rooms_collection = db.chat_rooms
 
-
-
+async def get_usernames_for_ids(user_ids: list[str]) -> dict:
+    """Get usernames for a list of user IDs"""
+    usernames = {}
+    for user_id in user_ids:
+        user = await get_user_by_id(user_id)
+        if user:
+            usernames[user_id] = user['username']
+    return usernames
 
 # 消息相关函数
 async def save_message(
-    content: str, sender_id: str, sender_username: str, room_id: str
+    content: str, sender_id: str, sender_username: str, room_id: str, mentions: list[dict] = None
 ):
     message = {
         "content": content,
@@ -18,6 +29,7 @@ async def save_message(
         "sender_username": sender_username,
         "room_id": room_id,
         "created_at": datetime.utcnow(),
+        "mentions": mentions or []
     }
     result = await messages_collection.insert_one(message)
     message["id"] = str(result.inserted_id)
@@ -48,19 +60,34 @@ async def create_chat_room(name: str, creator_id: str):
 
 
 async def get_chat_room(room_id: str):
-    return await chat_rooms_collection.find_one({"_id": ObjectId(room_id)})
+    room = await chat_rooms_collection.find_one({"_id": ObjectId(room_id)})
+    if room:
+        room["id"] = str(room["_id"])
+        # Get usernames for participants
+    return room
 
 
 async def add_participant_to_room(room_id: str, user_id: str):
+    logging.info(f"add_participant_to_room: {room_id}, {user_id}")
     await chat_rooms_collection.update_one(
-        {"_id": room_id}, {"$addToSet": {"participants": user_id}}
+        {"_id": ObjectId(room_id)}, {"$addToSet": {"participants": user_id}}
     )
+
+
+
+async def get_room_participants(room_id: str):
+    room = await get_chat_room(room_id)
+    return room["participants"]
 
 
 async def get_chat_rooms(user_id: str):
-    return await chat_rooms_collection.find({"participants": user_id}).to_list(
-        length=100
-    )
+    rooms = await chat_rooms_collection.find({"participants": user_id}).to_list(length=100)
+    for room in rooms:
+        room["id"] = str(room["_id"])
+        # Get usernames for participants
+        usernames = await get_usernames_for_ids(room["participants"])
+        room["participant_names"] = [usernames.get(p_id, p_id) for p_id in room["participants"]]
+    return rooms
 
 
 async def get_chat_room_by_id(room_id: str):

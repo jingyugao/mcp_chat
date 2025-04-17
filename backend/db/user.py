@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from bson import ObjectId
 from passlib.context import CryptContext
 
 from backend.db.conn import users_collection, tokens_collection
@@ -50,6 +51,10 @@ async def save_token(username: str, token: str, expires: datetime):
 
 async def delete_token(token: str):
     await tokens_collection.delete_one({"token": token})
+
+
+async def get_user_by_id(user_id: str):
+    return await users_collection.find_one({"_id": ObjectId(user_id)})
 
 
 async def search_user(username: str, user_id: str):

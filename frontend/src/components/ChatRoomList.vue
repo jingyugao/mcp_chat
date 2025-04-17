@@ -9,7 +9,7 @@
 			<div v-for="room in rooms" :key="room.id" class="room-card" @click="enterRoom(room)">
 				<h3>{{ room.name }}</h3>
 				<div class="room-info">
-					<span class="participants-count">{{ room.participants.length }} participants</span>
+					<span class="participants-count">{{ room.participant_names.length }} participants</span>
 					<span class="created-at">{{ formatDate(room.created_at) }}</span>
 				</div>
 			</div>

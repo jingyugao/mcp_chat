@@ -17,6 +17,7 @@ class ChatRoom(MongoBaseModel):
     name: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
     participants: list[str] = Field(default_factory=list)
+    participant_names: list[str] = Field(default_factory=list)
     is_public: bool = True
 
 

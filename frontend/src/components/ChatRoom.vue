@@ -4,7 +4,7 @@
 			<div class="header-left">
 				<h2>{{ room.name }}</h2>
 				<div class="participants">
-					<span v-for="participant in room.participants" :key="participant" class="participant">
+					<span v-for="participant in room.participant_names" :key="participant" class="participant">
 						{{ participant }}
 					</span>
 				</div>
@@ -31,12 +31,34 @@
 					<span class="sender">{{ message.sender_username }}</span>
 					<span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
 				</div>
-				<div class="message-content">{{ message.content }}</div>
+				<div class="message-content" v-html="formatMessageContent(message)"></div>
 			</div>
 		</div>
 
 		<div class="chat-input">
-			<textarea v-model="newMessage" @keydown.enter.prevent="sendMessage" placeholder="Type your message..." rows="3" :disabled="isSending || !isConnected"></textarea>
+			<div class="input-wrapper">
+				<textarea 
+					v-model="newMessage" 
+					@keydown.enter="handleEnterKey"
+					@input="handleInput"
+					@keydown="handleKeyDown"
+					placeholder="Type your message..." 
+					rows="3" 
+					:disabled="isSending || !isConnected"
+				></textarea>
+				<!-- Mention suggestions -->
+				<div v-if="showMentionSuggestions" class="mention-suggestions">
+					<div 
+						v-for="username in filteredParticipants" 
+						:key="username"
+						class="mention-item"
+						:class="{ 'selected': selectedMentionIndex === filteredParticipants.indexOf(username) }"
+						@click="selectMention(username)"
+					>
+						{{ username }}
+					</div>
+				</div>
+			</div>
 			<button @click="sendMessage" :disabled="!newMessage.trim() || isSending || !isConnected" :class="{ 'sending': isSending }">
 				<span v-if="isSending">Sending...</span>
 				<span v-else>Send</span>
@@ -66,7 +88,7 @@
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { httpClient } from '../utils/http-client'
 import { API_URLS } from '../api/config'
@@ -92,6 +114,20 @@ export default {
 		const inviteUsername = ref('')
 		const isInviting = ref(false)
 		const inviteError = ref('')
+
+		// Mention related state
+		const mentionSearch = ref('')
+		const showMentionSuggestions = ref(false)
+		const selectedMentionIndex = ref(0)
+		const mentionStartIndex = ref(-1)
+
+		const filteredParticipants = computed(() => {
+			if (!mentionSearch.value) return room.value.participant_names || []
+			const search = mentionSearch.value.toLowerCase()
+			return (room.value.participant_names || []).filter(p => 
+				p.toLowerCase().includes(search)
+			)
+		})
 
 		const connectSSE = () => {
 			const token = localStorage.getItem('access_token')
@@ -169,13 +205,100 @@ export default {
 			}
 		}
 
+		const handleInput = (event) => {
+			const text = event.target.value
+			const lastAtIndex = text.lastIndexOf('@')
+			
+			if (lastAtIndex !== -1) {
+				const afterAt = text.slice(lastAtIndex + 1)
+				const spaceAfterAt = afterAt.indexOf(' ')
+				
+				if (spaceAfterAt === -1) {
+					mentionSearch.value = afterAt
+					showMentionSuggestions.value = true
+					mentionStartIndex.value = lastAtIndex
+					selectedMentionIndex.value = 0
+					return
+				}
+			}
+			
+			showMentionSuggestions.value = false
+			mentionStartIndex.value = -1
+		}
+
+		const handleKeyDown = (event) => {
+			if (!showMentionSuggestions.value) return
+
+			if (event.key === 'ArrowDown') {
+				event.preventDefault()
+				selectedMentionIndex.value = (selectedMentionIndex.value + 1) % filteredParticipants.value.length
+			} else if (event.key === 'ArrowUp') {
+				event.preventDefault()
+				selectedMentionIndex.value = (selectedMentionIndex.value - 1 + filteredParticipants.value.length) % filteredParticipants.value.length
+			} else if (event.key === 'Enter' && showMentionSuggestions.value) {
+				event.preventDefault()
+				const selectedUser = filteredParticipants.value[selectedMentionIndex.value]
+				if (selectedUser) {
+					selectMention(selectedUser)
+				}
+			} else if (event.key === 'Escape') {
+				showMentionSuggestions.value = false
+			}
+		}
+
+		const selectMention = (username) => {
+			const beforeMention = newMessage.value.slice(0, mentionStartIndex.value)
+			const afterMention = newMessage.value.slice(mentionStartIndex.value + mentionSearch.value.length + 1)
+			newMessage.value = `${beforeMention}@${username} ${afterMention}`
+			showMentionSuggestions.value = false
+			mentionStartIndex.value = -1
+		}
+
+		const extractMentions = (text) => {
+			const mentions = []
+			const regex = /@(\w+)/g
+			let match
+			
+			while ((match = regex.exec(text)) !== null) {
+				const username = match[1]
+				if (room.value.participant_names?.includes(username)) {
+					mentions.push({
+						username: username,
+						index: match.index
+					})
+				}
+			}
+			
+			return mentions
+		}
+
+		const handleEnterKey = (event) => {
+			if (showMentionSuggestions.value) {
+				event.preventDefault()
+				const selectedUser = filteredParticipants.value[selectedMentionIndex.value]
+				if (selectedUser) {
+					selectMention(selectedUser)
+				}
+			} else if (event.shiftKey) {
+				// 如果按住Shift+Enter，插入换行符
+				return
+			} else {
+				// 如果没有显示@用户建议，则发送消息
+				event.preventDefault()
+				sendMessage()
+			}
+		}
+
 		const sendMessage = async () => {
 			if (!newMessage.value.trim() || isSending.value || !isConnected.value) return
 
+			const mentions = extractMentions(newMessage.value)
 			isSending.value = true
+			
 			try {
 				const response = await httpClient.post(API_URLS.chat.messages(route.params.roomId), {
-					content: newMessage.value.trim()
+					content: newMessage.value.trim(),
+					mentions: mentions
 				})
 
 				if (response.ok) {
@@ -228,6 +351,29 @@ export default {
 			}
 		}
 
+		const formatMessageContent = (message) => {
+			if (!message.mentions || message.mentions.length === 0) {
+				return escapeHtml(message.content)
+			}
+
+			let content = message.content
+			// Sort mentions by index in descending order to replace from end to start
+			const sortedMentions = [...message.mentions].sort((a, b) => b.index - a.index)
+			
+			for (const mention of sortedMentions) {
+				const mentionText = `@${mention.username}`
+				content = content.slice(0, mention.index) +`<span class="mention">${mentionText}</span>` +content.slice(mention.index + mentionText.length)
+			}
+			
+			return content
+		}
+
+		const escapeHtml = (text) => {
+			const div = document.createElement('div')
+			div.textContent = text
+			return div.innerHTML
+		}
+
 		onMounted(() => {
 			fetchRoomInfo()
 			fetchMessages()
@@ -255,7 +401,14 @@ export default {
 			inviteUsername,
 			isInviting,
 			inviteError,
-			inviteUser
+			inviteUser,
+			handleInput,
+			handleKeyDown,
+			showMentionSuggestions,
+			filteredParticipants,
+			selectedMentionIndex,
+			selectMention,
+			formatMessageContent
 		}
 	}
 }
@@ -546,5 +699,40 @@ export default {
 	color: #f44336;
 	margin-top: 10px;
 	font-size: 0.9em;
+}
+
+.input-wrapper {
+	position: relative;
+	flex: 1;
+}
+
+.mention-suggestions {
+	position: absolute;
+	bottom: 100%;
+	left: 0;
+	width: 100%;
+	max-height: 200px;
+	overflow-y: auto;
+	background: white;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	z-index: 1000;
+}
+
+.mention-item {
+	padding: 8px 12px;
+	cursor: pointer;
+	transition: background-color 0.2s;
+}
+
+.mention-item:hover,
+.mention-item.selected {
+	background-color: #e3f2fd;
+}
+
+.message-content .mention {
+	color: #1976d2;
+	font-weight: 500;
 }
 </style>
