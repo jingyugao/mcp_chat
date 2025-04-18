@@ -490,6 +490,8 @@ export default {
 	border-radius: 8px;
 	margin-bottom: 15px;
 	position: relative;
+	width: 70%;          /* Changed from 80% to 60% to match chat-input */
+	margin: 0 auto 15px; /* Changed margin to auto for center alignment */
 }
 
 .loading-messages,
@@ -552,12 +554,11 @@ export default {
 
 /* 聊天输入框容器样式 */
 .chat-input {
-	position: relative;     /* 相对定位,作为子元素的定位参考 */
+	position: relative;     
 	display: flex;         /* 弹性布局 */
 	gap: 10px;            /* 子元素之间的间距为10px */
-	width: 100%;          /* 宽度占满父容器 */
-	max-width: 1100px;    /* 最大宽度限制在1100px */
-	margin: 0 auto;       /* 水平居中 */
+	width: 50%;          /* 宽度占满父容器 */
+	margin: 0 auto 14px 15%;       /* 调整左边距，向左移动 */
 }
 
 /* 文本输入框样式 */
@@ -585,10 +586,10 @@ export default {
 
 .chat-input button {
 	position: absolute;
-	right: 10px;
+	right: -65px;
 	bottom: 10px;
-	width: 40px;
-	height: 40px;
+	width: 30px;
+	height: 30px;
 	padding: 0;
 	border: none;
 	border-radius: 50%;
