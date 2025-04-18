@@ -3,7 +3,8 @@ from mcp import ClientSession
 from mcp.types import ResourceTemplate, Prompt, Resource, Tool
 from pydantic import BaseModel
 from backend.chat_room import room_chat
-from backend.db.user import get_user_by_username, get_users_by_role
+from backend.db.chat_room import get_chat_room
+from backend.db.user import get_user_by_username, get_users_by_ids, get_users_by_role
 from backend.db.user import create_user
 from backend.model.model import User
 from backend.model.model import UserRole
@@ -26,6 +27,10 @@ class McpUser:
         self.user_id = str(user["_id"])
         self.user_name = user["username"]
         self.sse_url = user["mcp_sse_url"]
+        self.tools = []
+        self.prompts = []
+        self.resources = []
+        self.resource_templates = []
 
     async def chat_can_exec(self, room_id: str, tool_name: str, args: dict) -> None:
         content = "can exec tool:" + tool_name + " with args:" + str(args)
@@ -57,6 +62,16 @@ class McpUser:
                 await session.initialize()
                 tools = await session.list_tools()
                 return tools
+
+    async def refresh_server_info(self) -> ServerInfo:
+        async with sse_client(self.sse_url) as client:
+            async with ClientSession(*client) as session:
+                await session.initialize()
+                self.tools=await session.list_tools().tools
+                self.prompts=await session.list_prompts().prompts
+                self.resources=await session.list_resources().resources
+                self.resource_templates=await session.list_resource_templates().resourceTemplates
+
 
     async def get_server_info(self) -> ServerInfo:
         async with sse_client(self.sse_url) as client:
@@ -111,3 +126,7 @@ async def all_mcp_users():
     return [McpUser(user) for user in users]
 
 
+async def get_room_mcp_users(room_id: str):
+    room = await get_chat_room(room_id)
+    users = await get_users_by_ids(room["participants"])
+    return [McpUser(user) for user in users if user["role"]  == UserRole.MCP]

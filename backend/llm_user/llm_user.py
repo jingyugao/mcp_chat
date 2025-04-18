@@ -14,7 +14,8 @@ from backend.db.chat_room import (
     get_chat_room,
     get_room_participants,
 )
-from backend.db.user import create_user, get_user_by_username
+from backend.db.user import create_user, get_user_by_username, get_users_by_ids
+from backend.llm_user.mcp_user import McpUser, get_room_mcp_users
 from backend.model.model import User, UserRole
 from backend.models import Message as BaseMessage
 from openai import OpenAI
@@ -100,7 +101,7 @@ def call_tool(tool: Tool, args: dict):
 # return {"status": "success", "result": result}
 
 
-def get_tool_description(tool: Tool):
+def get_tool_description(tool: Tool) -> ToolDescription:
     return ToolDescription(
         type="function",
         function=FunctionSchema(
@@ -160,6 +161,22 @@ class LlmUser:
                 # 回复消息
                 content = "你好。我是llm"
 
+                mcp_users = await get_room_mcp_users(room_id)
+                print(mcp_users)
+                tools = await asyncio.gather(*[user.list_tools() for user in mcp_users])
+                print(tools)
+                response = self.llm.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[
+                        {"role": "user", "content": content},
+                    ],
+                    tools=(
+                        [get_tool_description(tool) for tool in tools]
+                        if tools
+                        else None
+                    ),
+                )
+                print(response)
                 await room_chat.chat_room_manager.send_message(
                     content, self.user_id, self.user_name, room_id
                 )
