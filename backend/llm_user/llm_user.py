@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 import threading
 import typing
 from typing import Callable, Dict, List, Optional
@@ -8,12 +9,21 @@ from typing import Callable, Dict, List, Optional
 from mcp import Tool
 from pydantic import BaseModel
 from backend.chat_room import room_chat
-from backend.db.chat_room import add_participant_to_room, get_chat_room, get_room_participants
+from backend.db.chat_room import (
+    add_participant_to_room,
+    get_chat_room,
+    get_room_participants,
+)
 from backend.db.user import create_user, get_user_by_username
 from backend.model.model import User, UserRole
 from backend.models import Message as BaseMessage
+from openai import OpenAI
 
 from mcp.server.fastmcp import FastMCP
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class ToolCall(BaseModel):
@@ -21,10 +31,6 @@ class ToolCall(BaseModel):
     args: dict
     result: dict
     func: Callable
-
-
-class Message(BaseMessage):
-    pass
 
 
 """
@@ -55,28 +61,6 @@ ext_tools:
 
 
 """
-
-
-def get_recommend_mcp(history: list[Message], msg: Message):
-    pass
-
-
-def chat_with_tools(history: list[Message], msg: Message):
-    pass
-
-
-all_mcp = {
-    "twitter": {
-        "name": "twitter",
-        "description": "twitter is a social media platform",
-        "tools": {
-            "get_user_latest_posts": {
-                "description": "get the user's latest posts",
-                "args": {"user_id": str},
-            }
-        },
-    },
-}
 
 
 class ParameterProperty(BaseModel):
@@ -133,12 +117,17 @@ def get_tool_description(tool: Tool):
         ),
     )
 
+
 class LlmUser:
     def __init__(self, user_name: str):
         self.user_name = user_name
-        self.user = None 
-        self.inited=False
-        self.user_id =""
+        self.user = None
+        self.inited = False
+        self.user_id = ""
+        self.llm = OpenAI(
+            api_key=os.getenv("DEEPSEEK_API_KEY"),
+            base_url="https://api.deepseek.com",
+        )
 
     async def start(self):
         user = await get_user_by_username(self.user_name)
@@ -147,7 +136,7 @@ class LlmUser:
                 User(
                     username=self.user_name,
                     password=self.user_name,
-                    email=self.user_name+"@llm.com",
+                    email=self.user_name + "@llm.com",
                     role=UserRole.LLM,
                 )
             )
@@ -156,7 +145,7 @@ class LlmUser:
             raise Exception("Failed to create llm user")
         self.user = user
         self.user_id = str(user["_id"])
-        self.inited=True
+        self.inited = True
         asyncio.create_task(self.task_chat())
         asyncio.create_task(self.task_enter_room())
 
@@ -166,20 +155,24 @@ class LlmUser:
             content = message["data"]["content"]
             sender_id = message["data"]["sender_id"]
             room_id = message["data"]["room_id"]
-            mentions = [m['user_id'] for m in  message["data"]["mentions"]]
+            mentions = [m["user_id"] for m in message["data"]["mentions"]]
             if self.user_id in mentions:
                 # 回复消息
-                await room_chat.chat_room_manager.send_message("你好。我是llm",self.user_id,self.user_name,room_id)
-            
+                content = "你好。我是llm"
+
+                await room_chat.chat_room_manager.send_message(
+                    content, self.user_id, self.user_name, room_id
+                )
+
             # room_chat.chat_room_manager.send_message("你好。我是llm",self.user_id,self.user_name,message["room_id"],mentions=message['sender_id'])
-        
+
     async def task_enter_room(self) -> None:
         while True:
             message = await room_chat.chat_room_manager.enter_room_queue.get()
             _, room_id = message
             room_participants = await get_room_participants(room_id)
             if self.user_id not in room_participants:
-                await add_participant_to_room(room_id=room_id,user_id=self.user_id)
+                await add_participant_to_room(room_id=room_id, user_id=self.user_id)
 
 
 all_llm_users = [LlmUser(user_name="llm_user")]
@@ -201,10 +194,6 @@ def summary(
 def init_task():
     for llm_user in all_llm_users:
         asyncio.create_task(llm_user.start())
-
-
-
-
 
 
 def init_llm_user():

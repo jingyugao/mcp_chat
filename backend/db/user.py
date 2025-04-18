@@ -4,15 +4,19 @@ from bson import ObjectId
 from passlib.context import CryptContext
 
 from backend.db.conn import users_collection, tokens_collection
-from backend.model.model import User
+from backend.model.model import User, UserRole
 
 # 密码哈希
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
+
+async def get_users_by_role(role: UserRole):
+    return await users_collection.find({"role": role}).to_list(length=100)
+
+
 async def get_user_by_username(username: str):
     return await users_collection.find_one({"username": username})
-
 
 async def get_user_by_email(email: str):
     return await users_collection.find_one({"email": email})
@@ -25,6 +29,7 @@ async def create_user(user: User):
         "password": pwd_context.hash(user.password),
         "created_at": datetime.utcnow(),
         "role": user.role,
+        "mcp_sse_url": user.mcp_sse_url,
     }
     result = await users_collection.insert_one(user_dict)
     user_dict["id"] = str(result.inserted_id)
