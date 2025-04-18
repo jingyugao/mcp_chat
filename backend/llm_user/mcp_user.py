@@ -56,12 +56,12 @@ class McpUser:
                 result = await session.call_tool(tool_name, args)
                 return result
         
-    async def list_tools(self) -> None:
+    async def list_tools(self) -> List[Tool]:
         async with sse_client(self.sse_url) as client:
             async with ClientSession(*client) as session:
                 await session.initialize()
                 tools = await session.list_tools()
-                return tools
+                return tools.tools
 
     async def refresh_server_info(self) -> ServerInfo:
         async with sse_client(self.sse_url) as client:

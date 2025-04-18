@@ -153,18 +153,21 @@ class LlmUser:
     async def task_chat(self) -> None:
         while True:
             message = await room_chat.chat_room_manager.global_message_queue.get()
+            print(message)
             content = message["data"]["content"]
             sender_id = message["data"]["sender_id"]
             room_id = message["data"]["room_id"]
             mentions = [m["user_id"] for m in message["data"]["mentions"]]
             if self.user_id in mentions:
                 # 回复消息
-                content = "你好。我是llm"
+
 
                 mcp_users = await get_room_mcp_users(room_id)
-                print(mcp_users)
-                tools = await asyncio.gather(*[user.list_tools() for user in mcp_users])
-                print(tools)
+                tool_list = await asyncio.gather(*[user.list_tools() for user in mcp_users])
+                tools = []
+                for tl in tool_list:
+                    tools.extend(tl)
+                print(tools,content)
                 response = self.llm.chat.completions.create(
                     model="deepseek-chat",
                     messages=[
@@ -176,10 +179,18 @@ class LlmUser:
                         else None
                     ),
                 )
-                print(response)
-                await room_chat.chat_room_manager.send_message(
-                    content, self.user_id, self.user_name, room_id
-                )
+                
+                tool_calls = response.choices[0].message.tool_calls
+                if tool_calls:
+                    for tool_call in tool_calls:
+                        print(tool_call)
+                        pass;
+                     
+                else:
+                    content = response.choices[0].message.content
+                    await room_chat.chat_room_manager.send_message(
+                        content, self.user_id, self.user_name, room_id
+                    )
 
             # room_chat.chat_room_manager.send_message("你好。我是llm",self.user_id,self.user_name,message["room_id"],mentions=message['sender_id'])
 
