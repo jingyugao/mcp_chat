@@ -10,14 +10,7 @@ from backend.db.user import get_user_by_id
 messages_collection = db.messages
 chat_rooms_collection = db.chat_rooms
 
-async def get_usernames_for_ids(user_ids: list[str]) -> dict:
-    """Get usernames for a list of user IDs"""
-    usernames = {}
-    for user_id in user_ids:
-        user = await get_user_by_id(user_id)
-        if user:
-            usernames[user_id] = user['username']
-    return usernames
+
 
 # 消息相关函数
 async def save_message(
@@ -37,8 +30,6 @@ async def save_message(
 
 
 async def get_room_messages(room_id: str, limit: int = 50):
-    print("room_id:", room_id)
-
     cursor = messages_collection.find({"room_id": room_id})
     cursor.sort("created_at", -1).limit(limit)
     messages = await cursor.to_list(length=limit)
@@ -84,11 +75,7 @@ async def get_chat_rooms(user_id: str):
     rooms = await chat_rooms_collection.find({"participants": user_id}).to_list(length=100)
     for room in rooms:
         room["id"] = str(room["_id"])
-        # Get usernames for participants
-        usernames = await get_usernames_for_ids(room["participants"])
-        room["participant_names"] = [usernames.get(p_id, p_id) for p_id in room["participants"]]
     return rooms
-
 
 async def get_chat_room_by_id(room_id: str):
     return await chat_rooms_collection.find_one({"_id": ObjectId(room_id)})

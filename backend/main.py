@@ -70,7 +70,6 @@ app.include_router(mcp.router, prefix="/api/mcp", tags=["mcp"])
 
 @app.on_event("startup")
 async def startup_event():
-    print("startup_event")
     init_llm_user()
 
 

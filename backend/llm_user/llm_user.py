@@ -141,7 +141,6 @@ class LlmUser:
         self.user_id =""
 
     async def start(self):
-        print("start llm user",self.user_name)
         user = await get_user_by_username(self.user_name)
         if user is None:
             user = await create_user(
@@ -160,19 +159,25 @@ class LlmUser:
         self.inited=True
         asyncio.create_task(self.task_chat())
         asyncio.create_task(self.task_enter_room())
-        
 
     async def task_chat(self) -> None:
         while True:
             message = await room_chat.chat_room_manager.global_message_queue.get()
-            print(message)
+            content = message["data"]["content"]
+            sender_id = message["data"]["sender_id"]
+            room_id = message["data"]["room_id"]
+            mentions = [m['user_id'] for m in  message["data"]["mentions"]]
+            if self.user_id in mentions:
+                # 回复消息
+                await room_chat.chat_room_manager.send_message("你好。我是llm",self.user_id,self.user_name,room_id)
+            
+            # room_chat.chat_room_manager.send_message("你好。我是llm",self.user_id,self.user_name,message["room_id"],mentions=message['sender_id'])
         
     async def task_enter_room(self) -> None:
         while True:
             message = await room_chat.chat_room_manager.enter_room_queue.get()
             _, room_id = message
             room_participants = await get_room_participants(room_id)
-            print(self.user_id,room_participants)
             if self.user_id not in room_participants:
                 await add_participant_to_room(room_id=room_id,user_id=self.user_id)
 

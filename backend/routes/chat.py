@@ -6,7 +6,7 @@ from fastapi import (
     Request,
 )
 from backend.chat_room.room_chat import chat_room_manager as room_chat
-from backend.db.user import search_user, get_user_by_username
+from backend.db.user import get_users_by_ids, search_user, get_user_by_username
 from backend.routes.util import get_current_user
 from backend.db.chat_room import (
     get_room_messages,
@@ -14,7 +14,6 @@ from backend.db.chat_room import (
     get_chat_room,
     add_participant_to_room,
     get_chat_rooms,
-    get_usernames_for_ids,
 )
 
 
@@ -82,9 +81,8 @@ async def get_room_info(room_id: str, current_user: dict = Depends(get_current_u
     room = await get_chat_room(room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
-    usernames = await get_usernames_for_ids(room["participants"])
-    room["participant_names"] = [usernames.get(p_id, p_id) for p_id in room["participants"]]
-    
+    users = await get_users_by_ids(room["participants"])
+    room["participant_users"] = {str(user["_id"]): user["username"] for user in users}
     return room
 
 
