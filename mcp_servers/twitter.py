@@ -145,7 +145,8 @@ async def get_user_latest_tweets(user_id: str) -> List[Tweet]:
         response.raise_for_status()
         response_data = response.json()
         with open("response_data.json", "w") as f:
-            f.write(str(response.content))
+            pass
+            # f.write(str(response.content))
         # 使用 model_validate 并关闭严格验证
         return TweetsResponse(**response_data).tweets
 

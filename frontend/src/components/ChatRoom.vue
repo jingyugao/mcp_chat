@@ -199,7 +199,12 @@ export default {
 		const fetchMessages = async () => {
 			isLoading.value = true
 			try {
-				const response = await httpClient.get(API_URLS.chat.messages(route.params.roomId))
+				const response = await httpClient.get(API_URLS.chat.messages(route.params.roomId));
+				if (response.ok) {
+					// Reverse the messages array since server returns in descending order
+					const messagesFromServer = await response.json();
+					messages.value = messagesFromServer.reverse();
+				}
 				if (response.ok) {
 					messages.value = await response.json()
 					scrollToBottom()

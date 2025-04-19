@@ -122,13 +122,6 @@ async def sse_endpoint(
                 yield {"event": "message", "data": json.dumps(message)}
         finally:
             room_chat.disconnect(current_user["_id"], room_id)
-            await room_chat.broadcast(
-                {
-                    "type": "system",
-                    "data": f"User {current_user['username']} left the chat",
-                },
-                room_id,
-            )
 
     return EventSourceResponse(event_generator())
 
@@ -138,7 +131,7 @@ async def search_user(username: str, current_user: dict = Depends(get_current_us
     return await search_user(username, str(current_user["_id"]))
 
 
-@router.post("invite_user/{room_id}")
+@router.post("/invite_user/{room_id}")
 async def invite_user(
     room_id: str,
     invite_request: InviteRequest,
@@ -166,14 +159,6 @@ async def invite_user(
 
     # Add user to room
     await add_participant_to_room(room_id, str(user_to_invite["_id"]))
-
-    # Create system message
-    room_chat.send_message(
-        content=f"User {user_to_invite['username']} has been invited to the room by {current_user['username']}",
-        sender_id="system",
-        sender_username="system",
-        room_id=room_id,
-    )
 
     return {
         "status": "success",

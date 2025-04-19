@@ -45,3 +45,4 @@ class User(MongoBaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     last_login: Optional[datetime] = None
     role: UserRole = Field(default=UserRole.USER)
+    mcp_sse_url: Optional[str] = None
