@@ -161,13 +161,14 @@ class LlmUser:
             if self.user_id in mentions:
                 # 回复消息
 
-
                 mcp_users = await get_room_mcp_users(room_id)
-                tool_list = await asyncio.gather(*[user.list_tools() for user in mcp_users])
+                tool_list = await asyncio.gather(
+                    *[user.list_tools() for user in mcp_users]
+                )
                 tools = []
                 for tl in tool_list:
                     tools.extend(tl)
-                print(tools,content)
+                print(tools, content)
                 response = self.llm.chat.completions.create(
                     model="deepseek-chat",
                     messages=[
@@ -179,13 +180,13 @@ class LlmUser:
                         else None
                     ),
                 )
-                
+
                 tool_calls = response.choices[0].message.tool_calls
                 if tool_calls:
                     for tool_call in tool_calls:
                         print(tool_call)
-                        pass;
-                     
+                        pass
+
                 else:
                     content = response.choices[0].message.content
                     await room_chat.chat_room_manager.send_message(
