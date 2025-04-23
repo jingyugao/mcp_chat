@@ -1,5 +1,6 @@
 import asyncio
 import json
+from json import tool
 import logging
 import os
 import threading
@@ -15,7 +16,7 @@ from backend.db.chat_room import (
     get_room_participants,
 )
 from backend.db.user import create_user, get_user_by_username, get_users_by_ids
-from backend.llm_user.mcp_user import McpUser, get_room_mcp_users
+from backend.llm_user.mcp_user import McpUser, get_mcp_user, get_room_mcp_users
 from backend.model.model import User, UserRole
 from openai import OpenAI
 
@@ -152,7 +153,6 @@ class LlmUser:
     async def task_chat(self) -> None:
         while True:
             message = await room_chat.chat_room_manager.global_message_queue.get()
-            print(message)
             content = message["data"]["content"]
             sender_id = message["data"]["sender_id"]
             room_id = message["data"]["room_id"]
@@ -161,13 +161,15 @@ class LlmUser:
                 # 回复消息
 
                 mcp_users = await get_room_mcp_users(room_id)
-                tool_list = await asyncio.gather(
+                all_tools = await asyncio.gather(
                     *[user.list_tools() for user in mcp_users]
                 )
+                tool2mcp={}
                 tools = []
-                for tl in tool_list:
-                    tools.extend(tl)
-                print(tools, content)
+                for mcp_tools,mcp in zip(all_tools,mcp_users):
+                    tools.extend(mcp_tools)
+                    tool2mcp= tool2mcp | {tool.name:mcp for tool in mcp_tools}
+
                 response = self.llm.chat.completions.create(
                     model="deepseek-chat",
                     messages=[
@@ -184,7 +186,14 @@ class LlmUser:
                 if tool_calls:
                     for tool_call in tool_calls:
                         print(tool_call)
-                        pass
+                        func = tool_call.function
+                        content={
+                            "mcp_id":tool2mcp[func.name].user_name,
+                            "func_name":func.name,
+                            "args":json.loads(func.arguments),
+                        }
+
+                        await room_chat.chat_room_manager.send_message(json.dumps(content,ensure_ascii=False),self.user_id,self.user_name,room_id)
 
                 else:
                     content = response.choices[0].message.content

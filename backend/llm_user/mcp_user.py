@@ -126,7 +126,7 @@ async def all_mcp_users():
     return [McpUser(user) for user in users]
 
 
-async def get_room_mcp_users(room_id: str):
+async def get_room_mcp_users(room_id: str) -> List[McpUser]:
     room = await get_chat_room(room_id)
     users = await get_users_by_ids(room["participants"])
     return [McpUser(user) for user in users if user["role"]  == UserRole.MCP]
