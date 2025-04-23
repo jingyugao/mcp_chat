@@ -17,7 +17,6 @@ from backend.db.chat_room import (
 from backend.db.user import create_user, get_user_by_username, get_users_by_ids
 from backend.llm_user.mcp_user import McpUser, get_room_mcp_users
 from backend.model.model import User, UserRole
-from backend.models import Message as BaseMessage
 from openai import OpenAI
 
 from mcp.server.fastmcp import FastMCP
